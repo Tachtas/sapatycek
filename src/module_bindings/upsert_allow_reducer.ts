@@ -15,4 +15,5 @@ export default {
   label: __t.string(),
   outlet: __t.string(),
   active: __t.bool(),
+  role: __t.string(),
 };

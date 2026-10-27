@@ -15,6 +15,7 @@ export const Allowlist = __t.object("Allowlist", {
   label: __t.string(),
   outlet: __t.string(),
   active: __t.bool(),
+  role: __t.string(),
 });
 export type Allowlist = __Infer<typeof Allowlist>;
 
