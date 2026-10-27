@@ -7,7 +7,8 @@
   const DB_NAME = 'sapaty-pos';
   const OUTLET = 'Braka'; // Cek kasir HANYA untuk outlet Braka (Audy tidak ada cek)
 
-  let tanggal = $state(new Date().toISOString().slice(0, 10));
+  // Tanggal otomatis hari ini Asia/Jayapura (WIT, UTC+9)
+  const tanggal = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jayapura' }).format(new Date());
 
   let conn = $state<any>(null);
   let statusKoneksi = $state<'menghubungkan' | 'terhubung' | 'terputus'>('menghubungkan');
@@ -17,7 +18,7 @@
   let daftarPenjualan = $state<any[]>([]);
   let daftarStaff = $state<any[]>([]);
 
-  // Input Cek & Bayar (tanpa tombol)
+  // Input Cek & Bayar (tanpa tombol, ukuran compact 50%)
   let cepatTeks = $state('');
   let bayarTeks = $state('');
   let inputCepatEl = $state<HTMLInputElement | null>(null);
@@ -27,25 +28,36 @@
   let menyimpanBayar = $state(false);
   let pendingCekNominal = $state<number | null>(null);
 
-  // Flash highlight visual
+  // Keterangan pelunasan di samping input bayar (tidak menggeser layout)
+  let pesanPelunasan = $state<{ sales: string; nominal: number; bayar: number; kembali: number } | null>(null);
+  let timerPelunasan: any = null;
+  let pesanGalat = $state<string | null>(null);
+  let timerGalat: any = null;
+
+  // Flash highlight visual pada baris tabel
   let flashCekId = $state<bigint | null>(null);
   let timerFlash: any = null;
-
-  // Notifikasi besar pembayaran & galat
-  let notifs = $state<{ id: number; tipe: 'hijau' | 'merah' | 'info'; judul: string; baris: string[] }[]>([]);
-  let notifIdSeq = 0;
 
   // Filter & tab
   let cariTeks = $state('');
   let filterStatus = $state<'semua' | 'cocok' | 'belum' | 'kurang_bayar'>('semua');
-  let tabAktif = $state<'cek' | 'tanpa_cek' | 'ringkasan'>('cek');
+  let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
-  function tampilkanNotif(tipe: 'hijau' | 'merah' | 'info', judul: string, baris: string[] = []) {
-    const id = ++notifIdSeq;
-    notifs = [{ id, tipe, judul, baris }, ...notifs.slice(0, 4)];
-    setTimeout(() => {
-      notifs = notifs.filter((n) => n.id !== id);
-    }, 5000);
+  function setPesanPelunasan(sales: string, nominal: number, bayar: number, kembali: number) {
+    clearTimeout(timerPelunasan);
+    pesanGalat = null;
+    pesanPelunasan = { sales, nominal, bayar, kembali };
+    timerPelunasan = setTimeout(() => {
+      pesanPelunasan = null;
+    }, 6000);
+  }
+
+  function setPesanGalat(teks: string) {
+    clearTimeout(timerGalat);
+    pesanGalat = teks;
+    timerGalat = setTimeout(() => {
+      pesanGalat = null;
+    }, 4000);
   }
 
   function triggerFlash(id: bigint) {
@@ -151,10 +163,6 @@
     }
   }
 
-  $effect(() => {
-    if (tanggal) refreshData();
-  });
-
   // =========================================================================
   // LOGIKA INPUT CEK TANPA TOMBOL: Otomatis submit saat format lengkap
   // =========================================================================
@@ -220,16 +228,14 @@
         dibayar: 0n,
       });
 
-      // Flash baris teratas
       await tick();
       if (daftarCek.length > 0) triggerFlash(daftarCek[0].id);
 
-      // Jika kasir sudah sempat mengetik di kotak Bayar saat cek disimpan
       if (bayarTeks.trim()) {
         onInputBayar();
       }
     } catch (e: any) {
-      tampilkanNotif('merah', `Gagal simpan cek: ${e.message || e}`);
+      setPesanGalat(`Gagal simpan cek: ${e.message || e}`);
       cepatTeks = teks;
       inputCepatEl?.focus();
     } finally {
@@ -245,11 +251,9 @@
     const teks = bayarTeks.trim();
     if (!teks || !/^\d+$/.test(teks)) return;
 
-    // Nominal input bayar dalam ribuan (misal "50" = 50.000)
     const bayarRp = Number(teks) * 1000;
     const sisa = sisaTargetBayar;
 
-    // Jika kasir sudah mengetik sama dengan atau melebihi sisa tagihan, LANGSUNG BAYAR seketika!
     if (sisa > 0 && bayarRp >= sisa) {
       kirimBayar();
     }
@@ -267,7 +271,6 @@
     const teks = bayarTeks.trim();
     if (!teks || menyimpanBayar) return;
 
-    // Jika cek baru masih dalam proses simpan, tunggu 50ms agar masuk database
     if (menyimpanCek) {
       setTimeout(kirimBayar, 50);
       return;
@@ -279,7 +282,7 @@
     const bayarPenuh = BigInt(nominalAngka < 1000 ? nominalAngka * 1000 : nominalAngka);
     const target = targetBayar;
     if (!target) {
-      tampilkanNotif('merah', 'Tidak ada transaksi yang menunggu pembayaran.');
+      setPesanGalat('Tidak ada cek yang menunggu pembayaran.');
       return;
     }
 
@@ -302,14 +305,10 @@
         nominalBayar: bayarPenuh,
       });
 
-      // Tampilkan notifikasi pembayaran sah besar (hijau 5 detik)
-      tampilkanNotif('hijau', `Pembayaran Lunas`, [
-        `${salesNama} = ${rupiah(target.nominal)}`,
-        `Bayar = ${rupiah(bayarRp)}`,
-        `Kembali = ${rupiah(Math.max(0, kembali))}`,
-      ]);
+      // Tampilkan keterangan pelunasan di samping input bayar
+      setPesanPelunasan(salesNama, Number(target.nominal), bayarRp, Math.max(0, kembali));
     } catch (e: any) {
-      tampilkanNotif('merah', `Gagal catat bayar: ${e.message || e}`);
+      setPesanGalat(`Gagal bayar: ${e.message || e}`);
       bayarTeks = teks;
       inputBayarEl?.focus();
     } finally {
@@ -321,9 +320,8 @@
     if (!confirm('Hapus baris cek ini?')) return;
     try {
       await conn?.reducers.hapusDeklarasiCek({ id });
-      tampilkanNotif('info', 'Baris cek dihapus.');
     } catch (err: any) {
-      tampilkanNotif('merah', `Gagal hapus: ${err.message || err}`);
+      setPesanGalat(`Gagal hapus: ${err.message || err}`);
     }
   }
 
@@ -380,62 +378,58 @@
   }
 </script>
 
-<div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
-  <!-- HEADER (Braka Only, tanpa switcher Audy) -->
-  <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-        <span>🔍 Sapaty Cek Braka</span>
-        <span class="text-xs px-2.5 py-0.5 rounded-full font-medium {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-          {statusKoneksi === 'terhubung' ? '● Live SpacetimeDB' : '○ ' + statusKoneksi}
-        </span>
-      </h1>
-      <p class="text-xs text-slate-500 mt-0.5">Rekonsiliasi Deklarasi Kasir vs Register POS Realtime</p>
+<div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
+  <!-- 1. KARTU INFORMASI HEADER (UKURAN LEBIH KECIL, RAMPING) -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Cek</div>
+        <div class="text-sm font-bold text-slate-900">{rupiah(ringkasan.totalCek)}</div>
+      </div>
+      <span class="text-[11px] text-slate-400 font-mono">{ringkasan.jmlCek} ({ringkasan.jmlCocok}✓)</span>
     </div>
 
-    <!-- TANGGAL SELECTOR -->
-    <div class="flex items-center gap-2">
-      <span class="text-xs font-semibold text-slate-500">Tanggal:</span>
-      <input
-        type="date"
-        bind:value={tanggal}
-        class="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold shadow-xs focus:ring-2 focus:ring-blue-500 outline-none"
-      />
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Register POS</div>
+        <div class="text-sm font-bold text-slate-900">{rupiah(ringkasan.totalPenjualan)}</div>
+      </div>
+      <span class="text-[11px] text-slate-400 font-mono">{daftarPenjualan.length} order</span>
     </div>
-  </header>
 
-  <!-- NOTIFIKASI BESAR PEMBAYARAN & FEEDBACK (Hilang 5 Detik) -->
-  {#if notifs.length > 0}
-    <div class="space-y-2">
-      {#each notifs as n (n.id)}
-        <div
-          class="p-4 rounded-xl shadow-md border text-base font-semibold flex justify-between items-start transition-all {n.tipe === 'hijau' ? 'bg-emerald-500 text-white border-emerald-600' : n.tipe === 'merah' ? 'bg-rose-500 text-white border-rose-600' : 'bg-blue-600 text-white border-blue-700'}"
-        >
-          <div>
-            <div class="text-lg font-bold">{n.judul}</div>
-            {#if n.baris && n.baris.length > 0}
-              <div class="mt-1 text-sm font-mono space-y-0.5 opacity-95">
-                {#each n.baris as b}
-                  <div>{b}</div>
-                {/each}
-              </div>
-            {/if}
-          </div>
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selisih</div>
+        <div class="text-sm font-bold {ringkasan.selisih === 0 ? 'text-emerald-600' : 'text-rose-600'}">
+          {rupiah(ringkasan.selisih)}
         </div>
-      {/each}
+      </div>
+      <span class="text-[10px] font-bold {ringkasan.selisih === 0 ? 'text-emerald-500' : 'text-rose-500'}">
+        {ringkasan.selisih === 0 ? 'Pas' : 'Selisih'}
+      </span>
     </div>
-  {/if}
 
-  <!-- DUA KOTAK INPUT SEJAJAR: CEK & BAYAR (TANPA TOMBOL, FULL OTOMATIS) -->
-  <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <!-- 1. KOTAK CEK -->
-      <label class="flex flex-col gap-1.5">
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Cek (Ketik Cepat Otomatis)</span>
-          <span class="text-[11px] text-slate-400">Contoh: <b>25m1</b></span>
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
+      <div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanpa Cek</div>
+        <div class="text-sm font-bold {ringkasan.penjualanTanpaCek.length > 0 ? 'text-amber-600' : 'text-slate-700'}">
+          {ringkasan.penjualanTanpaCek.length} Order
         </div>
+      </div>
+      <span class="text-[9px] px-1.5 py-0.5 rounded font-bold {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+        {statusKoneksi === 'terhubung' ? '● LIVE' : '○'}
+      </span>
+    </div>
+  </div>
+
+  <!-- 2. BARIS INPUT KASIR (UKURAN 50% LEBIH KECIL, KETERANGAN DI SAMPING BAYAR) -->
+  <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- INPUT CEK (Ukuran 50%: h-8, w-28, text-base font-mono) -->
+      <div class="flex items-center gap-1.5">
+        <label for="input-cepat" class="text-xs font-bold uppercase text-slate-500">Cek:</label>
         <input
+          id="input-cepat"
           bind:this={inputCepatEl}
           bind:value={cepatTeks}
           oninput={onInputCepat}
@@ -449,23 +443,15 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="25m1"
-          class="h-14 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-4 text-3xl font-mono font-bold tracking-wider focus:border-blue-600 focus:bg-white focus:ring-0 outline-none transition-colors"
+          class="h-8 w-28 rounded-md border border-slate-300 bg-slate-50 px-2 text-base font-mono font-bold tracking-wide focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none transition-colors"
         />
-      </label>
+      </div>
 
-      <!-- 2. KOTAK BAYAR -->
-      <label class="flex flex-col gap-1.5">
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Bayar (Otomatis Saat Uang Cukup)</span>
-          {#if targetBayar}
-            <span class="text-[11px] font-bold text-emerald-600">
-              Target: {targetBayar.salesmanNama} (Sisa: {rupiah(sisaTargetBayar)})
-            </span>
-          {:else}
-            <span class="text-[11px] text-slate-400">Semua lunas</span>
-          {/if}
-        </div>
+      <!-- INPUT BAYAR (Ukuran 50%: h-8, w-24, text-base font-mono) -->
+      <div class="flex items-center gap-1.5">
+        <label for="input-bayar" class="text-xs font-bold uppercase text-slate-500">Bayar:</label>
         <input
+          id="input-bayar"
           bind:this={inputBayarEl}
           bind:value={bayarTeks}
           oninput={onInputBayar}
@@ -478,72 +464,51 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="50"
-          class="h-14 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-4 text-3xl font-mono font-bold tracking-wider focus:border-emerald-600 focus:bg-white focus:ring-0 outline-none transition-colors"
+          class="h-8 w-24 rounded-md border border-slate-300 bg-slate-50 px-2 text-base font-mono font-bold tracking-wide focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 outline-none transition-colors"
         />
-      </label>
-    </div>
+      </div>
 
-    <!-- PETUNJUK KODE SALESMAN & ATURAN -->
-    <div class="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500 border-t border-slate-100">
-      <span class="font-bold text-slate-600">Kode Sales:</span>
-      {#each Array.from(kodeSalesMap.values()) as s}
-        <span class="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-          <b class="text-blue-700">{s.kode}</b> = {s.nama}
-        </span>
-      {/each}
-      <span class="ml-2 font-bold text-slate-600">Tipe:</span>
-      <span class="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">1=Ecer</span>
-      <span class="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">2=Obral</span>
-      <span class="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">3=Grosir</span>
-      <span class="text-slate-400 ml-auto hidden sm:inline">Navigasi: ➔ Cek ke Bayar, ⬅ Bayar ke Cek</span>
+      <!-- KETERANGAN DI SAMPING INPUT BAYAR (TIDAK MENGGESER KE BAWAH) -->
+      <div class="flex-1 flex items-center min-w-0">
+        {#if pesanPelunasan}
+          <div class="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md truncate">
+            <span class="font-bold">✓ LUNAS:</span>
+            <span>{pesanPelunasan.sales} {rupiah(pesanPelunasan.nominal)}</span>
+            <span class="text-slate-300">|</span>
+            <span>Bayar {rupiah(pesanPelunasan.bayar)}</span>
+            <span class="text-slate-300">|</span>
+            <span class="font-bold text-emerald-700">Kembali {rupiah(pesanPelunasan.kembali)}</span>
+          </div>
+        {:else if pesanGalat}
+          <div class="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md truncate">
+            {pesanGalat}
+          </div>
+        {:else if targetBayar}
+          <div class="text-xs text-slate-600 font-medium truncate">
+            Target: <b class="text-slate-800">{targetBayar.salesmanNama}</b>
+            (Sisa: <b class="text-emerald-700">{rupiah(sisaTargetBayar)}</b>)
+          </div>
+        {:else}
+          <div class="text-xs text-slate-400">
+            Semua cek lunas
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 
-  <!-- SUMMARY CARDS -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-      <span class="text-xs font-semibold text-slate-400 uppercase">Total Cek Kasir</span>
-      <div class="text-lg sm:text-xl font-bold text-slate-900 mt-1">{rupiah(ringkasan.totalCek)}</div>
-      <span class="text-[11px] text-slate-500">{ringkasan.jmlCek} baris ({ringkasan.jmlCocok} cocok)</span>
-    </div>
-
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-      <span class="text-xs font-semibold text-slate-400 uppercase">Register POS (Ollsera)</span>
-      <div class="text-lg sm:text-xl font-bold text-slate-900 mt-1">{rupiah(ringkasan.totalPenjualan)}</div>
-      <span class="text-[11px] text-slate-500">{daftarPenjualan.length} order tercatat</span>
-    </div>
-
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-      <span class="text-xs font-semibold text-slate-400 uppercase">Selisih Kasir vs POS</span>
-      <div class="text-lg sm:text-xl font-bold {ringkasan.selisih === 0 ? 'text-emerald-600' : 'text-rose-600'} mt-1">
-        {rupiah(ringkasan.selisih)}
-      </div>
-      <span class="text-[11px] text-slate-500">{ringkasan.selisih === 0 ? '✓ Seimbang' : 'Ada ketidakcocokan'}</span>
-    </div>
-
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-      <div>
-        <span class="text-xs font-semibold text-slate-400 uppercase">Penjualan Tanpa Cek</span>
-        <div class="text-lg sm:text-xl font-bold {ringkasan.penjualanTanpaCek.length > 0 ? 'text-amber-600' : 'text-slate-700'} mt-1">
-          {ringkasan.penjualanTanpaCek.length} Order
-        </div>
-      </div>
-      <span class="text-[11px] text-slate-400">Kasir belum lapor</span>
-    </div>
-  </div>
-
-  <!-- NAVIGATION TABS & FILTER -->
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 pb-3">
+  <!-- 3. NAVIGATION TABS & FILTER -->
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
     <div class="flex gap-2">
       <button
         onclick={() => { tabAktif = 'cek'; }}
-        class="px-4 py-2 text-sm font-bold rounded-lg transition-colors {tabAktif === 'cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+        class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
       >
         📋 Daftar Cek ({daftarCek.length})
       </button>
       <button
         onclick={() => { tabAktif = 'tanpa_cek'; }}
-        class="px-4 py-2 text-sm font-bold rounded-lg transition-colors {tabAktif === 'tanpa_cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+        class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'tanpa_cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
       >
         ⚠️ Penjualan Tanpa Cek ({ringkasan.penjualanTanpaCek.length})
       </button>
@@ -553,7 +518,7 @@
       <div class="flex gap-2 w-full sm:w-auto">
         <select
           bind:value={filterStatus}
-          class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none font-medium"
+          class="text-xs bg-white border border-slate-200 rounded-md px-2 py-1 outline-none font-medium"
         >
           <option value="semua">Semua Status</option>
           <option value="cocok">Sudah Cocok</option>
@@ -563,7 +528,7 @@
         <input
           bind:value={cariTeks}
           placeholder="Cari salesman / order..."
-          class="text-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none flex-1 sm:w-48"
+          class="text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1 outline-none flex-1 sm:w-44"
         />
       </div>
     {/if}
@@ -571,38 +536,38 @@
 
   <!-- CONTENT TAB 1: DAFTAR CEK -->
   {#if tabAktif === 'cek'}
-    <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+    <div class="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
       {#if cekTersaring.length === 0}
-        <div class="p-12 text-center text-slate-400 text-sm">
-          Belum ada deklarasi cek kasir untuk {OUTLET} pada tanggal {tanggal}.
+        <div class="p-8 text-center text-slate-400 text-xs">
+          Belum ada deklarasi cek kasir untuk hari ini.
         </div>
       {:else}
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] border-b border-slate-200">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
               <tr>
-                <th class="p-3">Jam</th>
-                <th class="p-3">Salesman</th>
-                <th class="p-3 text-right">Nominal</th>
-                <th class="p-3 text-right">Dibayar</th>
-                <th class="p-3">Tipe</th>
-                <th class="p-3">Status</th>
-                <th class="p-3">Pasangan POS</th>
-                <th class="p-3 text-center">Aksi</th>
+                <th class="p-2.5">Jam</th>
+                <th class="p-2.5">Salesman</th>
+                <th class="p-2.5 text-right">Nominal</th>
+                <th class="p-2.5 text-right">Dibayar</th>
+                <th class="p-2.5">Tipe</th>
+                <th class="p-2.5">Status</th>
+                <th class="p-2.5">Pasangan POS</th>
+                <th class="p-2.5 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               {#each cekTersaring as c (c.id)}
                 <tr class="hover:bg-slate-50 transition-colors {flashCekId === c.id ? 'bg-emerald-100' : ''}">
-                  <td class="p-3 font-mono text-xs text-slate-600">{c.jam.slice(0, 5)}</td>
-                  <td class="p-3">
+                  <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
+                  <td class="p-2.5">
                     <span class="font-bold text-slate-900">{c.salesmanNama}</span>
                   </td>
-                  <td class="p-3 text-right font-mono font-bold text-slate-900">
+                  <td class="p-2.5 text-right font-mono font-bold text-slate-900">
                     {formatRibuan(c.nominal)}
                     <span class="text-[10px] text-slate-400 font-normal ml-0.5">({rupiah(c.nominal)})</span>
                   </td>
-                  <td class="p-3 text-right font-mono font-semibold">
+                  <td class="p-2.5 text-right font-mono font-semibold">
                     {#if c.kredit}
                       <span class="text-slate-400">Kredit</span>
                     {:else if Number(c.dibayar) >= Number(c.nominal)}
@@ -613,27 +578,27 @@
                       <span class="text-rose-600 font-bold">Rp 0</span>
                     {/if}
                   </td>
-                  <td class="p-3">
-                    <span class="px-2 py-0.5 rounded text-xs font-bold {c.tipe === 'Grosir' ? 'bg-purple-100 text-purple-700' : c.tipe === 'Obral' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
+                  <td class="p-2.5">
+                    <span class="px-1.5 py-0.5 rounded text-[11px] font-bold {c.tipe === 'Grosir' ? 'bg-purple-100 text-purple-700' : c.tipe === 'Obral' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
                       {c.tipe}
                     </span>
                   </td>
-                  <td class="p-3">
+                  <td class="p-2.5">
                     {#if c.status === 'Cocok'}
-                      <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                         ✓ Cocok
                       </span>
                     {:else if c.status === 'Cocok Tanpa Bukti Waktu'}
-                      <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
                         ~ Waktu Jauh
                       </span>
                     {:else}
-                      <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
                         ✕ Belum Cocok
                       </span>
                     {/if}
                   </td>
-                  <td class="p-3 text-xs">
+                  <td class="p-2.5 text-[11px]">
                     {#if c.orderNo}
                       <div class="font-mono text-slate-900 font-bold">{c.orderNo}</div>
                       <div class="text-slate-500">{c.customer}</div>
@@ -641,10 +606,10 @@
                       <span class="text-slate-400">-</span>
                     {/if}
                   </td>
-                  <td class="p-3 text-center">
+                  <td class="p-2.5 text-center">
                     <button
                       onclick={() => hapusCek(c.id)}
-                      class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                      class="text-[11px] text-rose-600 hover:text-rose-800 font-semibold px-1.5 py-0.5 rounded hover:bg-rose-50"
                       title="Hapus baris cek"
                     >
                       Hapus
@@ -661,36 +626,36 @@
 
   <!-- CONTENT TAB 2: PENJUALAN TANPA CEK -->
   {#if tabAktif === 'tanpa_cek'}
-    <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+    <div class="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
       {#if ringkasan.penjualanTanpaCek.length === 0}
-        <div class="p-12 text-center text-emerald-600 font-bold text-sm">
+        <div class="p-8 text-center text-emerald-600 font-bold text-xs">
           ✓ Semua transaksi register POS telah memiliki pasangan cek kasir!
         </div>
       {:else}
-        <div class="p-4 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-900">
+        <div class="p-3 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-900">
           Transaksi berikut tercatat di Register POS Ollsera tetapi belum dideklarasikan oleh kasir.
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] border-b border-slate-200">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
               <tr>
-                <th class="p-3">Waktu</th>
-                <th class="p-3">Order No</th>
-                <th class="p-3">Customer</th>
-                <th class="p-3">Pembayaran</th>
-                <th class="p-3 text-right">Total POS</th>
-                <th class="p-3">Kasir POS</th>
+                <th class="p-2.5">Waktu</th>
+                <th class="p-2.5">Order No</th>
+                <th class="p-2.5">Customer</th>
+                <th class="p-2.5">Pembayaran</th>
+                <th class="p-2.5 text-right">Total POS</th>
+                <th class="p-2.5">Kasir POS</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               {#each ringkasan.penjualanTanpaCek as p (p.orderNo)}
                 <tr class="hover:bg-slate-50">
-                  <td class="p-3 font-mono text-xs text-slate-600">{p.orderTime || '-'}</td>
-                  <td class="p-3 font-mono font-bold text-blue-700">{p.orderNo}</td>
-                  <td class="p-3 text-slate-900">{p.customerName || '1Ecer'}</td>
-                  <td class="p-3 text-slate-600">{p.paymentType || 'Tunai'}</td>
-                  <td class="p-3 text-right font-mono font-bold text-slate-900">{rupiah(p.total)}</td>
-                  <td class="p-3 text-xs text-slate-500">{p.cashierName || '-'}</td>
+                  <td class="p-2.5 font-mono text-slate-600">{p.orderTime || '-'}</td>
+                  <td class="p-2.5 font-mono font-bold text-blue-700">{p.orderNo}</td>
+                  <td class="p-2.5 text-slate-900">{p.customerName || '1Ecer'}</td>
+                  <td class="p-2.5 text-slate-600">{p.paymentType || 'Tunai'}</td>
+                  <td class="p-2.5 text-right font-mono font-bold text-slate-900">{rupiah(p.total)}</td>
+                  <td class="p-2.5 text-slate-500">{p.cashierName || '-'}</td>
                 </tr>
               {/each}
             </tbody>
