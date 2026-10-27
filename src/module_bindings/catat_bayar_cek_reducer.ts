@@ -11,6 +11,7 @@ import {
 } from "spacetimedb";
 
 export default {
+  cekId: __t.u64(),
   outlet: __t.string(),
   tanggal: __t.string(),
   nominalBayar: __t.i64(),
