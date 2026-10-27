@@ -18,38 +18,41 @@
   let daftarPenjualan = $state<any[]>([]);
   let daftarStaff = $state<any[]>([]);
 
-  // Input Cek & Bayar (tanpa tombol, ukuran compact 50%)
+  // Input Cek & Bayar (lebar +20%: w-36 & w-32)
   let cepatTeks = $state('');
   let bayarTeks = $state('');
   let inputCepatEl = $state<HTMLInputElement | null>(null);
   let inputBayarEl = $state<HTMLInputElement | null>(null);
 
+  // Status fokus kursor di bayar untuk efek flashing
+  let isBayarFocused = $state(false);
+
   let menyimpanCek = $state(false);
   let menyimpanBayar = $state(false);
   let pendingCekNominal = $state<number | null>(null);
 
-  // Keterangan pelunasan di samping input bayar (tidak menggeser layout)
+  // Keterangan pelunasan di samping input bayar (permanen tidak hilang setelah 5 detik)
   let pesanPelunasan = $state<{ sales: string; nominal: number; bayar: number; kembali: number } | null>(null);
-  let timerPelunasan: any = null;
   let pesanGalat = $state<string | null>(null);
   let timerGalat: any = null;
 
-  // Flash highlight visual pada baris tabel
+  // Flash highlight visual saat row baru ditambah
   let flashCekId = $state<bigint | null>(null);
   let timerFlash: any = null;
 
+  // State edit inline (double click)
+  let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
+  let inputEditEl = $state<HTMLInputElement | null>(null);
+
   // Filter & tab
   let cariTeks = $state('');
-  let filterStatus = $state<'semua' | 'cocok' | 'belum' | 'kurang_bayar'>('semua');
+  let filterStatus = $state<'semua' | 'kredit' | 'kurang_bayar'>('semua');
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   function setPesanPelunasan(sales: string, nominal: number, bayar: number, kembali: number) {
-    clearTimeout(timerPelunasan);
     pesanGalat = null;
     pesanPelunasan = { sales, nominal, bayar, kembali };
-    timerPelunasan = setTimeout(() => {
-      pesanPelunasan = null;
-    }, 6000);
+    // Permanen: tidak ada setTimeout yang menghapus pesanPelunasan
   }
 
   function setPesanGalat(teks: string) {
@@ -305,7 +308,7 @@
         nominalBayar: bayarPenuh,
       });
 
-      // Tampilkan keterangan pelunasan di samping input bayar
+      // Keterangan pelunasan permanen di samping input bayar
       setPesanPelunasan(salesNama, Number(target.nominal), bayarRp, Math.max(0, kembali));
     } catch (e: any) {
       setPesanGalat(`Gagal bayar: ${e.message || e}`);
@@ -313,6 +316,79 @@
       inputBayarEl?.focus();
     } finally {
       menyimpanBayar = false;
+    }
+  }
+
+  // =========================================================================
+  // LOGIKA DOUBLE CLICK EDIT INLINE & CHECKBOX KREDIT
+  // =========================================================================
+  async function mulaiEdit(c: any, kolom: 'salesman' | 'nominal' | 'dibayar') {
+    let nilai = '';
+    if (kolom === 'salesman') {
+      nilai = c.salesmanNama || c.salesman;
+    } else if (kolom === 'nominal' || kolom === 'dibayar') {
+      nilai = String(Number(c[kolom]) / 1000);
+    }
+    selEdit = { id: c.id, kolom, nilai };
+    await tick();
+    inputEditEl?.focus();
+    inputEditEl?.select();
+  }
+
+  function batalEdit() {
+    selEdit = null;
+  }
+
+  async function simpanEdit(c: any) {
+    if (!selEdit || selEdit.id !== c.id) return;
+    const s = selEdit;
+    selEdit = null;
+
+    let nominal = c.nominal;
+    let dibayar = c.dibayar;
+    let salesman = c.salesman;
+    let salesmanNama = c.salesmanNama;
+
+    if (s.kolom === 'nominal') {
+      const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
+      nominal = BigInt(ribuan * 1000);
+    } else if (s.kolom === 'dibayar') {
+      const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
+      dibayar = BigInt(ribuan * 1000);
+    } else if (s.kolom === 'salesman') {
+      const info = kodeSalesMap.get(s.nilai.trim().toLowerCase()[0]);
+      salesmanNama = info ? info.nama : s.nilai.trim();
+      salesman = info ? info.kode : s.nilai.trim().toLowerCase()[0] || '';
+    }
+
+    try {
+      await conn?.reducers.updateDeklarasiCek({
+        id: c.id,
+        nominal,
+        dibayar,
+        tipe: c.tipe,
+        kredit: c.kredit,
+        salesman,
+        salesmanNama,
+      });
+    } catch (err: any) {
+      setPesanGalat(`Gagal update: ${err.message || err}`);
+    }
+  }
+
+  async function toggleKredit(c: any, ceklis: boolean) {
+    try {
+      await conn?.reducers.updateDeklarasiCek({
+        id: c.id,
+        nominal: c.nominal,
+        dibayar: c.dibayar,
+        tipe: c.tipe,
+        kredit: ceklis,
+        salesman: c.salesman,
+        salesmanNama: c.salesmanNama,
+      });
+    } catch (err: any) {
+      setPesanGalat(`Gagal ubah kredit: ${err.message || err}`);
     }
   }
 
@@ -353,9 +429,8 @@
   const cekTersaring = $derived.by(() => {
     const q = cariTeks.trim().toLowerCase();
     return daftarCek.filter((c) => {
-      if (filterStatus === 'cocok' && c.status === 'Belum Cocok') return false;
-      if (filterStatus === 'belum' && c.status !== 'Belum Cocok') return false;
-      if (filterStatus === 'kurang_bayar' && c.dibayar >= c.nominal) return false;
+      if (filterStatus === 'kredit' && !c.kredit) return false;
+      if (filterStatus === 'kurang_bayar' && (c.kredit || Number(c.dibayar) >= Number(c.nominal))) return false;
       if (q) {
         const match =
           c.salesmanNama.toLowerCase().includes(q) ||
@@ -422,10 +497,10 @@
     </div>
   </div>
 
-  <!-- 2. BARIS INPUT KASIR (UKURAN 50% LEBIH KECIL, KETERANGAN DI SAMPING BAYAR) -->
+  <!-- 2. BARIS INPUT KASIR (LEBAR INPUT +20%, KETERANGAN PELUNASAN PERMANEN SEJAJAR) -->
   <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
     <div class="flex flex-wrap items-center gap-3">
-      <!-- INPUT CEK (Ukuran 50%: h-8, w-28, text-base font-mono) -->
+      <!-- INPUT CEK (Lebar +20%: w-36) -->
       <div class="flex items-center gap-1.5">
         <label for="input-cepat" class="text-xs font-bold uppercase text-slate-500">Cek:</label>
         <input
@@ -443,11 +518,11 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="25m1"
-          class="h-8 w-28 rounded-md border border-slate-300 bg-slate-50 px-2 text-base font-mono font-bold tracking-wide focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none transition-colors"
+          class="h-8 w-36 rounded-md border border-slate-300 bg-slate-50 px-2.5 text-base font-mono font-bold tracking-wide focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none transition-colors"
         />
       </div>
 
-      <!-- INPUT BAYAR (Ukuran 50%: h-8, w-24, text-base font-mono) -->
+      <!-- INPUT BAYAR (Lebar +20%: w-32, onfocus memicu flashing target cek) -->
       <div class="flex items-center gap-1.5">
         <label for="input-bayar" class="text-xs font-bold uppercase text-slate-500">Bayar:</label>
         <input
@@ -455,6 +530,8 @@
           bind:this={inputBayarEl}
           bind:value={bayarTeks}
           oninput={onInputBayar}
+          onfocus={() => { isBayarFocused = true; }}
+          onblur={() => { isBayarFocused = false; }}
           onkeydown={(e) => {
             if (e.key === 'Enter') kirimBayar();
             else if (e.key === 'ArrowLeft') onKeyLeftBayar(e);
@@ -464,11 +541,11 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="50"
-          class="h-8 w-24 rounded-md border border-slate-300 bg-slate-50 px-2 text-base font-mono font-bold tracking-wide focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 outline-none transition-colors"
+          class="h-8 w-32 rounded-md border border-slate-300 bg-slate-50 px-2.5 text-base font-mono font-bold tracking-wide focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 outline-none transition-colors"
         />
       </div>
 
-      <!-- KETERANGAN DI SAMPING INPUT BAYAR (TIDAK MENGGESER KE BAWAH) -->
+      <!-- KETERANGAN DI SAMPING INPUT BAYAR (PERMANEN, TIDAK HILANG SETELAH 5 DETIK) -->
       <div class="flex-1 flex items-center min-w-0">
         {#if pesanPelunasan}
           <div class="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md truncate">
@@ -520,10 +597,9 @@
           bind:value={filterStatus}
           class="text-xs bg-white border border-slate-200 rounded-md px-2 py-1 outline-none font-medium"
         >
-          <option value="semua">Semua Status</option>
-          <option value="cocok">Sudah Cocok</option>
-          <option value="belum">Belum Cocok</option>
-          <option value="kurang_bayar">Kurang Bayar</option>
+          <option value="semua">Semua Cek</option>
+          <option value="kurang_bayar">Kurang Bayar (Ungu)</option>
+          <option value="kredit">Kredit (Kuning)</option>
         </select>
         <input
           bind:value={cariTeks}
@@ -534,7 +610,7 @@
     {/if}
   </div>
 
-  <!-- CONTENT TAB 1: DAFTAR CEK -->
+  <!-- CONTENT TAB 1: DAFTAR CEK (KOLOM STATUS DIHAPUS, ADA KREDIT?, KLIK 2x EDIT, FLASH SAAT BAYAR FOKUS) -->
   {#if tabAktif === 'cek'}
     <div class="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
       {#if cekTersaring.length === 0}
@@ -551,61 +627,121 @@
                 <th class="p-2.5 text-right">Nominal</th>
                 <th class="p-2.5 text-right">Dibayar</th>
                 <th class="p-2.5">Tipe</th>
-                <th class="p-2.5">Status</th>
+                <th class="p-2.5 text-center">Kredit?</th>
                 <th class="p-2.5">Pasangan POS</th>
                 <th class="p-2.5 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
               {#each cekTersaring as c (c.id)}
-                <tr class="hover:bg-slate-50 transition-colors {flashCekId === c.id ? 'bg-emerald-100' : ''}">
+                {@const isTarget = isBayarFocused && targetBayar?.id === c.id}
+                <tr
+                  class="transition-colors {isTarget ? 'animate-flash-target font-semibold' : flashCekId === c.id ? 'bg-emerald-100' : c.kredit ? 'bg-amber-50' : Number(c.dibayar) < Number(c.nominal) ? 'bg-purple-50' : 'hover:bg-slate-50'}"
+                >
                   <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
-                  <td class="p-2.5">
-                    <span class="font-bold text-slate-900">{c.salesmanNama}</span>
+
+                  <!-- 1. SALESMAN (Klik 2x edit) -->
+                  <td
+                    class="p-2.5 cursor-pointer"
+                    ondblclick={() => mulaiEdit(c, 'salesman')}
+                    title="Klik 2x untuk ubah salesman"
+                  >
+                    {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'salesman'}
+                      <input
+                        bind:this={inputEditEl}
+                        bind:value={selEdit.nilai}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') simpanEdit(c);
+                          else if (e.key === 'Escape') batalEdit();
+                        }}
+                        onblur={() => simpanEdit(c)}
+                        class="h-6 w-24 rounded border border-blue-500 bg-white px-1 text-xs outline-none"
+                      />
+                    {:else}
+                      <span class="font-bold text-slate-900">{c.salesmanNama}</span>
+                    {/if}
                   </td>
-                  <td class="p-2.5 text-right font-mono font-bold text-slate-900">
-                    {formatRibuan(c.nominal)}
-                    <span class="text-[10px] text-slate-400 font-normal ml-0.5">({rupiah(c.nominal)})</span>
+
+                  <!-- 2. NOMINAL (Klik 2x edit dalam ribuan) -->
+                  <td
+                    class="p-2.5 text-right font-mono font-bold text-slate-900 cursor-pointer"
+                    ondblclick={() => mulaiEdit(c, 'nominal')}
+                    title="Klik 2x untuk ubah nominal"
+                  >
+                    {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'nominal'}
+                      <input
+                        bind:this={inputEditEl}
+                        bind:value={selEdit.nilai}
+                        type="number"
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') simpanEdit(c);
+                          else if (e.key === 'Escape') batalEdit();
+                        }}
+                        onblur={() => simpanEdit(c)}
+                        class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
+                      />
+                    {:else}
+                      {formatRibuan(c.nominal)}
+                      <span class="text-[10px] text-slate-400 font-normal ml-0.5">({rupiah(c.nominal)})</span>
+                    {/if}
                   </td>
-                  <td class="p-2.5 text-right font-mono font-semibold">
-                    {#if c.kredit}
+
+                  <!-- 3. DIBAYAR (Klik 2x edit dalam ribuan) -->
+                  <td
+                    class="p-2.5 text-right font-mono font-semibold cursor-pointer"
+                    ondblclick={() => mulaiEdit(c, 'dibayar')}
+                    title="Klik 2x untuk ubah dibayar"
+                  >
+                    {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'dibayar'}
+                      <input
+                        bind:this={inputEditEl}
+                        bind:value={selEdit.nilai}
+                        type="number"
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter') simpanEdit(c);
+                          else if (e.key === 'Escape') batalEdit();
+                        }}
+                        onblur={() => simpanEdit(c)}
+                        class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
+                      />
+                    {:else if c.kredit}
                       <span class="text-slate-400">Kredit</span>
                     {:else if Number(c.dibayar) >= Number(c.nominal)}
                       <span class="text-emerald-700">{formatRibuan(c.dibayar)}</span>
                     {:else if Number(c.dibayar) > 0}
                       <span class="text-amber-700">{formatRibuan(c.dibayar)}</span>
                     {:else}
-                      <span class="text-rose-600 font-bold">Rp 0</span>
+                      <span class="text-rose-600 font-bold">0</span>
                     {/if}
                   </td>
+
                   <td class="p-2.5">
                     <span class="px-1.5 py-0.5 rounded text-[11px] font-bold {c.tipe === 'Grosir' ? 'bg-purple-100 text-purple-700' : c.tipe === 'Obral' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
                       {c.tipe}
                     </span>
                   </td>
-                  <td class="p-2.5">
-                    {#if c.status === 'Cocok'}
-                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                        ✓ Cocok
-                      </span>
-                    {:else if c.status === 'Cocok Tanpa Bukti Waktu'}
-                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
-                        ~ Waktu Jauh
-                      </span>
-                    {:else}
-                      <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
-                        ✕ Belum Cocok
-                      </span>
-                    {/if}
+
+                  <!-- 4. KOLOM KREDIT? (Checkbox langsung simpan, tidak ikut ditunggu di bayar) -->
+                  <td class="p-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={c.kredit}
+                      onchange={(e) => toggleKredit(c, (e.target as HTMLInputElement).checked)}
+                      class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer align-middle"
+                      title="Tandai kredit (tidak ikut ditunggu di kotak bayar)"
+                    />
                   </td>
+
+                  <!-- 5. PASANGAN POS -->
                   <td class="p-2.5 text-[11px]">
                     {#if c.orderNo}
                       <div class="font-mono text-slate-900 font-bold">{c.orderNo}</div>
                       <div class="text-slate-500">{c.customer}</div>
                     {:else}
-                      <span class="text-slate-400">-</span>
+                      <span class="text-rose-500 font-semibold">Belum cocok POS</span>
                     {/if}
                   </td>
+
                   <td class="p-2.5 text-center">
                     <button
                       onclick={() => hapusCek(c.id)}
@@ -665,3 +801,20 @@
     </div>
   {/if}
 </div>
+
+<style>
+  @keyframes flash-cell-yellow {
+    0%, 100% {
+      background-color: rgb(254 240 138); /* bg-yellow-200 */
+      box-shadow: inset 0 0 0 2px rgb(234 179 8);
+    }
+    50% {
+      background-color: rgb(253 224 71); /* bg-yellow-300 */
+      box-shadow: inset 0 0 0 2px rgb(202 138 4);
+    }
+  }
+
+  .animate-flash-target {
+    animation: flash-cell-yellow 0.8s ease-in-out infinite !important;
+  }
+</style>
