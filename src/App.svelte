@@ -585,20 +585,6 @@
         {/if}
       </div>
     </div>
-
-    <!-- DAFTAR SHORTCUT SALESMAN -->
-    <div class="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[11px]">
-      <span class="text-slate-400 font-semibold mr-1">Salesman:</span>
-      {#each daftarSalesmanAktif as s (s.kode)}
-        <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">
-          <strong class="font-mono uppercase text-blue-700 font-bold">[{s.kode}]</strong>
-          <span>{s.nama}</span>
-        </span>
-      {/each}
-      <span class="text-slate-300 mx-1">|</span>
-      <span class="text-slate-400 font-semibold">Tipe:</span>
-      <span class="text-slate-600 font-mono text-[10px]">1=Ecer 2=Obral 3=Grosir</span>
-    </div>
   </div>
 
   <!-- 3. NAVIGATION TABS & FILTER -->
@@ -667,23 +653,27 @@
                 >
                   <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
 
-                  <!-- 1. SALESMAN (Klik 2x edit) -->
+                  <!-- 1. SALESMAN (Klik 2x edit -> pilih dari dropdown) -->
                   <td
                     class="p-2.5 cursor-pointer"
                     ondblclick={() => mulaiEdit(c, 'salesman')}
                     title="Klik 2x untuk ubah salesman"
                   >
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'salesman'}
-                      <input
+                      <select
                         bind:this={inputEditEl}
                         bind:value={selEdit.nilai}
-                        onkeydown={(e) => {
-                          if (e.key === 'Enter') simpanEdit(c);
-                          else if (e.key === 'Escape') batalEdit();
-                        }}
+                        onchange={() => simpanEdit(c)}
                         onblur={() => simpanEdit(c)}
-                        class="h-6 w-24 rounded border border-blue-500 bg-white px-1 text-xs outline-none"
-                      />
+                        onkeydown={(e) => {
+                          if (e.key === 'Escape') batalEdit();
+                        }}
+                        class="h-7 rounded border border-blue-600 bg-white px-1 text-xs font-bold text-slate-900 outline-none shadow-xs"
+                      >
+                        {#each daftarSalesmanAktif as s (s.kode || s.nama)}
+                          <option value={s.nama}>{s.nama}</option>
+                        {/each}
+                      </select>
                     {:else}
                       <span class="font-bold text-slate-900">{c.salesmanNama}</span>
                     {/if}
