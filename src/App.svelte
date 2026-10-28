@@ -43,6 +43,7 @@
 
   // State edit inline (double click)
   let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
+  let nilaiAwalEdit = $state('');
   let inputEditEl = $state<HTMLInputElement | null>(null);
 
   // Filter & tab
@@ -301,7 +302,8 @@
     const nominalAngka = Number(teks.replace(/[^0-9]/g, ''));
     if (!nominalAngka) return;
 
-    const bayarPenuh = BigInt(nominalAngka < 1000 ? nominalAngka * 1000 : nominalAngka);
+    // Input bayar selalu dalam ribuan: 50 -> 50.000, 1.100 -> 1.100.000
+    const bayarPenuh = BigInt(nominalAngka * 1000);
     const target = targetBayar;
     if (!target) {
       setPesanGalat('Tidak ada cek yang menunggu pembayaran.');
@@ -349,6 +351,7 @@
       nilai = String(Number(c[kolom]) / 1000);
     }
     selEdit = { id: c.id, kolom, nilai };
+    nilaiAwalEdit = nilai;
     await tick();
     inputEditEl?.focus();
     inputEditEl?.select();
@@ -474,7 +477,7 @@
 
 <div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
   <!-- STICKY WRAPPER: card info + input kasir + tabs tetap di atas saat scroll -->
-  <div class="sticky top-0 z-20 space-y-2 bg-slate-50 pt-1 pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4">
+  <div class="sticky top-0 z-20 space-y-2 bg-slate-50 -mt-3 pt-3 pb-2 -mx-3 px-3 sm:-mt-4 sm:pt-4 sm:-mx-4 sm:px-4">
   <!-- 1. KARTU INFORMASI HEADER (UKURAN LEBIH KECIL, RAMPING) -->
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
     <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
@@ -678,7 +681,7 @@
                         bind:this={inputEditEl}
                         bind:value={selEdit.nilai}
                         onchange={() => simpanEdit(c)}
-                        onblur={() => simpanEdit(c)}
+                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
                         onkeydown={(e) => {
                           if (e.key === 'Escape') batalEdit();
                         }}
@@ -708,7 +711,7 @@
                           if (e.key === 'Enter') simpanEdit(c);
                           else if (e.key === 'Escape') batalEdit();
                         }}
-                        onblur={() => simpanEdit(c)}
+                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
                         class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
                       />
                     {:else}
@@ -732,7 +735,7 @@
                           if (e.key === 'Enter') simpanEdit(c);
                           else if (e.key === 'Escape') batalEdit();
                         }}
-                        onblur={() => simpanEdit(c)}
+                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
                         class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
                       />
                     {:else if c.kredit}
