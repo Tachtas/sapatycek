@@ -39,6 +39,7 @@ import AddSalesInvoiceItemReducer from "./add_sales_invoice_item_reducer";
 import CatatBayarCekReducer from "./catat_bayar_cek_reducer";
 import CatatSyncLogReducer from "./catat_sync_log_reducer";
 import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
+import HapusSalesmanReducer from "./hapus_salesman_reducer";
 import JadikanAdminPertamaReducer from "./jadikan_admin_pertama_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
 import LepasAkunReducer from "./lepas_akun_reducer";
@@ -67,6 +68,7 @@ import UpdateDeklarasiCekReducer from "./update_deklarasi_cek_reducer";
 import UpsertAllowReducer from "./upsert_allow_reducer";
 import UpsertCustomerReducer from "./upsert_customer_reducer";
 import UpsertProductReducer from "./upsert_product_reducer";
+import UpsertSalesmanReducer from "./upsert_salesman_reducer";
 import UpsertStaffReducer from "./upsert_staff_reducer";
 import VoidLineReducer from "./void_line_reducer";
 import VoidSalesInvoiceItemReducer from "./void_sales_invoice_item_reducer";
@@ -97,6 +99,7 @@ import ReturRow from "./retur_table";
 import ReturItemRow from "./retur_item_table";
 import SalesInvoiceRow from "./sales_invoice_table";
 import SalesInvoiceItemRow from "./sales_invoice_item_table";
+import SalesmanRow from "./salesman_table";
 import StaffRow from "./staff_table";
 import StockSnapshotRow from "./stock_snapshot_table";
 import StokKeluarRow from "./stok_keluar_table";
@@ -370,6 +373,20 @@ const tablesSchema = __schema({
       { name: 'sales_invoice_item_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, SalesInvoiceItemRow),
+  salesman: __table({
+    name: 'salesman',
+    indexes: [
+      { accessor: 'id', name: 'salesman_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'by_outlet', name: 'salesman_outlet_idx_btree', algorithm: 'btree', columns: [
+        'outlet',
+      ] },
+    ],
+    constraints: [
+      { name: 'salesman_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SalesmanRow),
   staff: __table({
     name: 'staff',
     indexes: [
@@ -506,6 +523,7 @@ const reducersSchema = __reducers(
   __reducerSchema("catat_bayar_cek", CatatBayarCekReducer),
   __reducerSchema("catat_sync_log", CatatSyncLogReducer),
   __reducerSchema("hapus_deklarasi_cek", HapusDeklarasiCekReducer),
+  __reducerSchema("hapus_salesman", HapusSalesmanReducer),
   __reducerSchema("jadikan_admin_pertama", JadikanAdminPertamaReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
   __reducerSchema("lepas_akun", LepasAkunReducer),
@@ -534,6 +552,7 @@ const reducersSchema = __reducers(
   __reducerSchema("upsert_allow", UpsertAllowReducer),
   __reducerSchema("upsert_customer", UpsertCustomerReducer),
   __reducerSchema("upsert_product", UpsertProductReducer),
+  __reducerSchema("upsert_salesman", UpsertSalesmanReducer),
   __reducerSchema("upsert_staff", UpsertStaffReducer),
   __reducerSchema("void_line", VoidLineReducer),
   __reducerSchema("void_sales_invoice_item", VoidSalesInvoiceItemReducer),

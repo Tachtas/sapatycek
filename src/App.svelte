@@ -17,6 +17,7 @@
   let daftarCek = $state<any[]>([]);
   let daftarPenjualan = $state<any[]>([]);
   let daftarStaff = $state<any[]>([]);
+  let daftarSalesman = $state<any[]>([]);
 
   // Input Cek & Bayar (lebar +20%: w-36 & w-32)
   let cepatTeks = $state('');
@@ -71,26 +72,13 @@
     }, 2500);
   }
 
-  const SALESMAN_MASTER: Record<string, { kode: string; nama: string }[]> = {
-    Braka: [
-      { kode: 'a', nama: 'Ai' },
-      { kode: 'i', nama: 'Indi' },
-      { kode: 'j', nama: 'Jasri' },
-      { kode: 'm', nama: 'Melaty' },
-      { kode: 'b', nama: 'Nabil' },
-      { kode: 'n', nama: 'Neman' },
-      { kode: 'v', nama: 'Silvia' },
-      { kode: 'c', nama: 'Sindi' },
-      { kode: 't', nama: 'Vita' },
-    ],
-    Audy: [
-      { kode: 'a', nama: 'Aci' },
-      { kode: 'i', nama: 'Indri' },
-      { kode: 'j', nama: 'Ija' },
-    ],
-  };
-
-  const daftarSalesmanAktif = $derived(SALESMAN_MASTER[OUTLET] || SALESMAN_MASTER.Braka);
+  // Daftar salesman dinamis dari SpacetimeDB (disinkronkan dari ERPNext tabSales Person)
+  const daftarSalesmanAktif = $derived(
+    daftarSalesman
+      .filter((s: any) => s.outlet === OUTLET && s.aktif)
+      .map((s: any) => ({ kode: (s.kode || s.nama[0] || '').toLowerCase(), nama: s.nama }))
+      .sort((a: any, b: any) => a.nama.localeCompare(b.nama))
+  );
 
   // Peta shortcut kode salesman dari nama
   const kodeSalesMap = $derived.by(() => {
@@ -158,6 +146,10 @@
     conn.db.staff.onInsert(() => refreshData());
     conn.db.staff.onUpdate(() => refreshData());
 
+    conn.db.salesman.onInsert(() => refreshData());
+    conn.db.salesman.onUpdate(() => refreshData());
+    conn.db.salesman.onDelete(() => refreshData());
+
     conn.subscriptionBuilder()
       .onApplied(() => {
         refreshData();
@@ -166,6 +158,7 @@
         'SELECT * FROM cek',
         'SELECT * FROM penjualan',
         'SELECT * FROM staff',
+        'SELECT * FROM salesman',
       ]);
   }
 
@@ -180,6 +173,7 @@
         .filter((p: any) => p.outlet === OUTLET && p.orderDate === tanggal);
 
       daftarStaff = Array.from(conn.db.staff.iter());
+      daftarSalesman = Array.from(conn.db.salesman.iter());
     } catch (e) {
       console.error('Error membaca tabel:', e);
     }

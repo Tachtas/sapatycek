@@ -246,6 +246,15 @@ export const SalesInvoiceItem = __t.object("SalesInvoiceItem", {
 });
 export type SalesInvoiceItem = __Infer<typeof SalesInvoiceItem>;
 
+export const Salesman = __t.object("Salesman", {
+  id: __t.string(),
+  nama: __t.string(),
+  kode: __t.string(),
+  outlet: __t.string(),
+  aktif: __t.bool(),
+});
+export type Salesman = __Infer<typeof Salesman>;
+
 export const Staff = __t.object("Staff", {
   identity: __t.identity(),
   pin: __t.string(),
