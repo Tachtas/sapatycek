@@ -50,6 +50,11 @@
   let filterStatus = $state<'semua' | 'kredit' | 'kurang_bayar'>('semua');
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
+  // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
+  $effect(() => {
+    if (tabAktif === 'tanpa_cek' && ringkasan.penjualanTanpaCek.length === 0) tabAktif = 'cek';
+  });
+
   function setPesanPelunasan(sales: string, nominal: number, bayar: number, kembali: number) {
     pesanGalat = null;
     pesanPelunasan = { sales, nominal, bayar, kembali };
@@ -475,7 +480,9 @@
         <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Cek</div>
         <div class="text-sm font-bold text-slate-900">{rupiah(ringkasan.totalCek)}</div>
       </div>
-      <span class="text-[11px] text-slate-400 font-mono">{ringkasan.jmlCek} ({ringkasan.jmlCocok}✓)</span>
+      <span class="text-[11px] {ringkasan.jmlBelumCocok > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'} font-mono">
+        {ringkasan.jmlCek} ({ringkasan.jmlCocok}✓ {ringkasan.jmlBelumCocok > 0 ? '· ' + ringkasan.jmlBelumCocok + '✗' : ''})
+      </span>
     </div>
 
     <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
@@ -597,12 +604,14 @@
       >
         📋 Daftar Cek ({daftarCek.length})
       </button>
-      <button
-        onclick={() => { tabAktif = 'tanpa_cek'; }}
-        class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'tanpa_cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
-      >
-        ⚠️ Penjualan Tanpa Cek ({ringkasan.penjualanTanpaCek.length})
-      </button>
+      {#if ringkasan.penjualanTanpaCek.length > 0}
+        <button
+          onclick={() => { tabAktif = 'tanpa_cek'; }}
+          class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'tanpa_cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+        >
+          ⚠️ Penjualan Tanpa Cek ({ringkasan.penjualanTanpaCek.length})
+        </button>
+      {/if}
     </div>
 
     {#if tabAktif === 'cek'}
@@ -640,6 +649,7 @@
                 <th class="p-2.5">Salesman</th>
                 <th class="p-2.5 text-right">Nominal</th>
                 <th class="p-2.5 text-right">Dibayar</th>
+                <th class="p-2.5 text-right">Kembalian</th>
                 <th class="p-2.5">Tipe</th>
                 <th class="p-2.5 text-center">Kredit?</th>
                 <th class="p-2.5">Pasangan POS</th>
@@ -731,6 +741,11 @@
                     {:else}
                       <span class="text-rose-600 font-bold">0</span>
                     {/if}
+                  </td>
+
+                  <!-- 3b. KEMBALIAN = dibayar - nominal (0 kalau belum lunas/kredit) -->
+                  <td class="p-2.5 text-right font-mono font-semibold {!c.kredit && Number(c.dibayar) > Number(c.nominal) ? 'text-emerald-700' : 'text-slate-300'}">
+                    {!c.kredit && Number(c.dibayar) > Number(c.nominal) ? formatRibuan(Number(c.dibayar) - Number(c.nominal)) : '—'}
                   </td>
 
                   <td class="p-2.5">
