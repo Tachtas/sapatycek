@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { DbConnection } from './module_bindings';
+  import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout } from './lib/login';
 
   // Config SpacetimeDB
   const HOST = 'https://maincloud.spacetimedb.com';
@@ -40,6 +41,9 @@
   // Flash highlight visual saat row baru ditambah
   let flashCekId = $state<bigint | null>(null);
   let timerFlash: any = null;
+
+  // Sesi login (SpacetimeAuth / Google)
+  let sesi = $state<{ status: 'belum_login' | 'ditolak' | 'oke'; email: string }>({ status: 'belum_login', email: '' });
 
   // State edit inline (double click)
   let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
@@ -110,7 +114,7 @@
 
   // Sambungkan ke SpacetimeDB
   onMount(() => {
-    hubungkanSpacetimeDB();
+    if (sesi.status === 'oke') hubungkanSpacetimeDB();
     inputCepatEl?.focus();
     // Kursor kasir tidak boleh keluar dari pasangan input Cek/Bayar:
     // klik pada area non-interaktif (baris tabel, kartu, celah) tidak
@@ -130,6 +134,7 @@
       const builder = DbConnection.builder()
         .withUri(HOST)
         .withDatabaseName(DB_NAME)
+        .withToken(spacetimeToken())
         .onConnect((connection) => {
           conn = connection;
           statusKoneksi = 'terhubung';
@@ -490,8 +495,57 @@
   function formatRibuan(n: number | bigint) {
     return (Number(n) / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 });
   }
+
+  // ==================== GERBANG LOGIN (SpacetimeAuth / Google) ====================
+  const EMAIL_DIIZINKAN = 'tachtasandangsjb@gmail.com';
+  if (!handleOidcCallback()) {
+    // bukan callback: cek sesi login
+    const tok = spacetimeToken();
+    let email = '';
+    try {
+      email = emailLogin();
+    } catch {}
+    if (!tok || !email) sesi = { status: 'belum_login', email: '' };
+    else if (email !== EMAIL_DIIZINKAN) sesi = { status: 'ditolak', email };
+    else sesi = { status: 'oke', email };
+  }
+
+  function masukGoogle() {
+    loginGoogle();
+  }
 </script>
 
+{#if sesi.status === 'belum_login'}
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
+      <div class="text-4xl">🔒</div>
+      <div class="text-lg font-bold text-slate-900">Sapaty Cek</div>
+      <div class="text-xs text-slate-500">Halaman ini hanya untuk akun terdaftar.<br />Masuk dengan Google via SpacetimeDB.</div>
+      <button
+        type="button"
+        onclick={masukGoogle}
+        class="w-full h-10 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
+      >
+        Masuk dengan Google
+      </button>
+    </div>
+  </div>
+{:else if sesi.status === 'ditolak'}
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-rose-200 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
+      <div class="text-4xl">⛔</div>
+      <div class="text-lg font-bold text-rose-700">Akses ditolak</div>
+      <div class="text-xs text-slate-500">Akun <b>{sesi.email}</b> tidak diizinkan membuka halaman ini.</div>
+      <button
+        type="button"
+        onclick={() => logout()}
+        class="w-full h-10 rounded-lg bg-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-300 transition-colors"
+      >
+        Ganti akun
+      </button>
+    </div>
+  </div>
+{:else}
 <div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
   <!-- STICKY WRAPPER: card info + input kasir + tabs tetap di atas saat scroll -->
   <div class="sticky top-0 z-20 space-y-2 bg-slate-50 -mt-3 pt-3 pb-2 -mx-3 px-3 sm:-mt-4 sm:pt-4 sm:-mx-4 sm:px-4">
@@ -860,6 +914,8 @@
     </div>
   {/if}
 </div>
+
+{/if}
 
 <style>
   @keyframes flash-cell-yellow {
