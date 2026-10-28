@@ -71,14 +71,33 @@
     }, 2500);
   }
 
+  const SALESMAN_MASTER: Record<string, { kode: string; nama: string }[]> = {
+    Braka: [
+      { kode: 'a', nama: 'Ai' },
+      { kode: 'i', nama: 'Indi' },
+      { kode: 'j', nama: 'Jasri' },
+      { kode: 'm', nama: 'Melaty' },
+      { kode: 'b', nama: 'Nabil' },
+      { kode: 'n', nama: 'Neman' },
+      { kode: 'v', nama: 'Silvia' },
+      { kode: 'c', nama: 'Sindi' },
+      { kode: 't', nama: 'Vita' },
+    ],
+    Audy: [
+      { kode: 'a', nama: 'Aci' },
+      { kode: 'i', nama: 'Indri' },
+      { kode: 'j', nama: 'Ija' },
+    ],
+  };
+
+  const daftarSalesmanAktif = $derived(SALESMAN_MASTER[OUTLET] || SALESMAN_MASTER.Braka);
+
   // Peta shortcut kode salesman dari nama
   const kodeSalesMap = $derived.by(() => {
     const map = new Map<string, { nama: string; kode: string }>();
-    const salesList = daftarStaff.filter((s) => s.outlet === OUTLET && s.active);
-    for (const s of salesList) {
-      const nama = s.label || s.email.split('@')[0];
-      const kode = nama[0].toLowerCase();
-      map.set(kode, { nama, kode });
+    for (const s of daftarSalesmanAktif) {
+      map.set(s.kode.toLowerCase(), { nama: s.nama, kode: s.kode.toLowerCase() });
+      map.set(s.nama.toLowerCase(), { nama: s.nama, kode: s.kode.toLowerCase() });
     }
     return map;
   });
@@ -208,8 +227,8 @@
     inputBayarEl?.focus();
 
     const infoSales = kodeSalesMap.get(kode);
-    const salesmanNama = infoSales ? infoSales.nama : `Sales (${kode.toUpperCase()})`;
-    const salesman = kode;
+    const salesmanNama = infoSales ? infoSales.nama : kode.toUpperCase();
+    const salesman = salesmanNama;
 
     let tipe = 'Ecer';
     if (tipeDigit === '2') tipe = 'Obral';
@@ -356,9 +375,9 @@
       const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
       dibayar = BigInt(ribuan * 1000);
     } else if (s.kolom === 'salesman') {
-      const info = kodeSalesMap.get(s.nilai.trim().toLowerCase()[0]);
+      const info = kodeSalesMap.get(s.nilai.trim().toLowerCase()) || kodeSalesMap.get(s.nilai.trim().toLowerCase()[0]);
       salesmanNama = info ? info.nama : s.nilai.trim();
-      salesman = info ? info.kode : s.nilai.trim().toLowerCase()[0] || '';
+      salesman = salesmanNama;
     }
 
     try {
@@ -571,6 +590,20 @@
           </div>
         {/if}
       </div>
+    </div>
+
+    <!-- DAFTAR SHORTCUT SALESMAN -->
+    <div class="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span class="text-slate-400 font-semibold mr-1">Salesman:</span>
+      {#each daftarSalesmanAktif as s (s.kode)}
+        <span class="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">
+          <strong class="font-mono uppercase text-blue-700 font-bold">[{s.kode}]</strong>
+          <span>{s.nama}</span>
+        </span>
+      {/each}
+      <span class="text-slate-300 mx-1">|</span>
+      <span class="text-slate-400 font-semibold">Tipe:</span>
+      <span class="text-slate-600 font-mono text-[10px]">1=Ecer 2=Obral 3=Grosir</span>
     </div>
   </div>
 
