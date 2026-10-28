@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { DbConnection } from './module_bindings';
-  import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout } from './lib/login';
+  import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi } from './lib/login';
 
   // Config SpacetimeDB
   const HOST = 'https://maincloud.spacetimedb.com';
@@ -43,7 +43,9 @@
   let timerFlash: any = null;
 
   // Sesi login (SpacetimeAuth / Google)
-  let sesi = $state<{ status: 'belum_login' | 'ditolak' | 'oke'; email: string }>({ status: 'belum_login', email: '' });
+  let sesi = $state<{ status: 'belum_login' | 'ditolak' | 'kedaluwarsa' | 'oke'; email: string }>({ status: 'belum_login', email: '' });
+  // Koneksi gagal dengan token yang masih muda (bukan soal umur token).
+  let gagalKoneksi = $state(false);
 
   // State edit inline (double click)
   let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
@@ -130,6 +132,13 @@
 
   function hubungkanSpacetimeDB() {
     statusKoneksi = 'menghubungkan';
+    gagalKoneksi = false;
+    // Jangan buang waktu menyambung dengan token mati — langsung masuk ulang.
+    if (tokenKedaluwarsa()) {
+      sesi = { status: 'kedaluwarsa', email: sesi.email };
+      masukUlangOtomatis();
+      return;
+    }
     try {
       const builder = DbConnection.builder()
         .withUri(HOST)
@@ -145,7 +154,10 @@
         })
         .onConnectError((_ctx, err) => {
           statusKoneksi = 'terputus';
+          gagalKoneksi = true;
           console.error('Koneksi SpacetimeDB error:', err);
+          // Token bisa ditolak server walau belum terlihat kedaluwarsa.
+          if (bolehCobaLagi(20000)) masukUlangOtomatis();
         });
 
       builder.build();
@@ -507,11 +519,27 @@
     } catch {}
     if (!tok || !email) sesi = { status: 'belum_login', email: '' };
     else if (email !== EMAIL_DIIZINKAN) sesi = { status: 'ditolak', email };
+    // Token kedaluwarsa = sama seperti belum login. Ini akar 'indikator kuning
+    // dan input mati' yang dialami operator tiap token berumur ~1 jam.
+    else if (tokenKedaluwarsa()) {
+      sesi = { status: 'kedaluwarsa', email };
+      // Coba masuk ulang sendiri (sesi Google biasanya masih hidup → operator
+      // tidak perlu mengetik apa pun). Kalau tidak berhasil, kartu tombol tetap tampil.
+      masukUlangOtomatis();
+    }
     else sesi = { status: 'oke', email };
   }
 
   function masukGoogle() {
+    tandaiCobaLagi();
     loginGoogle();
+  }
+
+  // Masuk ulang otomatis sekali (sesi Google biasanya masih hidup, jadi
+  // operator tidak perlu mengetik apa pun). Kalau gagal, tombol tetap ada.
+  function masukUlangOtomatis() {
+    if (!bolehCobaLagi()) return;
+    masukGoogle();
   }
 </script>
 
@@ -527,6 +555,25 @@
         class="w-full h-10 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
       >
         Masuk dengan Google
+      </button>
+    </div>
+  </div>
+{:else if sesi.status === 'kedaluwarsa'}
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-amber-300 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
+      <div class="text-4xl">⏳</div>
+      <div class="text-lg font-bold text-amber-700">Sesi login habis</div>
+      <div class="text-xs text-slate-500">
+        Masa berlaku login SpacetimeAuth sekitar 1 jam — itulah sebabnya indikator jadi kuning dan input cek
+        tidak bisa dipakai. Masuk lagi untuk melanjutkan (tidak ada input yang hilang).
+      </div>
+      <button
+        type="button"
+        data-ui="masukUlang"
+        onclick={masukGoogle}
+        class="w-full h-10 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors"
+      >
+        Masuk lagi dengan Google
       </button>
     </div>
   </div>
@@ -589,7 +636,7 @@
         </div>
       </div>
       <span class="text-[9px] px-1.5 py-0.5 rounded font-bold {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-        {statusKoneksi === 'terhubung' ? '● LIVE' : '○'}
+        {statusKoneksi === 'terhubung' ? '● LIVE' : statusKoneksi === 'menghubungkan' ? '○ menyambung' : gagalKoneksi ? '○ login ulang?' : '○ terputus'}
       </span>
     </div>
   </div>

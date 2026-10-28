@@ -91,3 +91,36 @@ export function handleOidcCallback(): boolean {
   }).catch((e) => document.body.insertAdjacentText('beforeend', `login gagal: ${e}`));
   return true;
 }
+
+// Token SpacetimeAuth (id_token) berlaku ~1 jam. Tanpa pemeriksaan ini,
+// setelah kedaluwarsa koneksi gagal diam-diam: indikator kuning, input cek
+// mati, tanpa penjelasan apa pun ke operator.
+export function tokenKedaluwarsa(marjinDetik = 120): boolean {
+  const t = spacetimeToken();
+  if (!t) return true;
+  try {
+    const bagian = t.split('.')[1] ?? '';
+    const isi = JSON.parse(atob(bagian.replace(/-/g, '+').replace(/_/g, '/')));
+    const exp = Number(isi.exp ?? 0);
+    if (!exp) return false; // tanpa exp: biarkan server yang menilai
+    return Date.now() / 1000 > exp - marjinDetik;
+  } catch {
+    return true;
+  }
+}
+
+const KUNCI_COBA = 'cek-login-terakhir';
+
+// Cegah lingkaran redirect: paling cepat 60 detik sekali.
+export function bolehCobaLagi(ms = 60000): boolean {
+  try {
+    const t = Number(localStorage.getItem(KUNCI_COBA) ?? 0);
+    return Date.now() - t > ms;
+  } catch {
+    return true;
+  }
+}
+
+export function tandaiCobaLagi(): void {
+  try { localStorage.setItem(KUNCI_COBA, String(Date.now())); } catch {}
+}
