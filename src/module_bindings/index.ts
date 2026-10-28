@@ -64,6 +64,7 @@ import SimpanPenjualanReducer from "./simpan_penjualan_reducer";
 import SimpanReturReducer from "./simpan_retur_reducer";
 import SimpanStokKeluarReducer from "./simpan_stok_keluar_reducer";
 import SimpanStokMasukReducer from "./simpan_stok_masuk_reducer";
+import SubmitRetryTaskReducer from "./submit_retry_task_reducer";
 import TambahDeklarasiCekReducer from "./tambah_deklarasi_cek_reducer";
 import UpdateDeklarasiCekReducer from "./update_deklarasi_cek_reducer";
 import UpsertAllowReducer from "./upsert_allow_reducer";
@@ -84,6 +85,7 @@ import AllowlistRow from "./allowlist_table";
 import AppConfigRow from "./app_config_table";
 import CashEventRow from "./cash_event_table";
 import CekRow from "./cek_table";
+import CronJobsRow from "./cron_jobs_table";
 import CustomerRow from "./customer_table";
 import OpnameRow from "./opname_table";
 import OpnameItemRow from "./opname_item_table";
@@ -111,6 +113,10 @@ import SyncCursorRow from "./sync_cursor_table";
 import SyncLogRow from "./sync_log_table";
 import TicketRow from "./ticket_table";
 import TicketLineRow from "./ticket_line_table";
+
+// Import namespace table schema definitions
+import Relations_UniqueRow from "./relations/unique_table";
+import Relations_FkRow from "./relations/fk_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -515,6 +521,35 @@ const tablesSchema = __schema({
       { name: 'ticket_line_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, TicketLineRow),
+  cronJobs: __table({
+    name: 'cron_jobs',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, CronJobsRow),
+  "relations.unique": __table({
+    name: 'relations.unique',
+    indexes: [
+      { accessor: 'id', name: 'unique_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'unique_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, Relations_UniqueRow),
+  "relations.fk": __table({
+    name: 'relations.fk',
+    indexes: [
+      { accessor: 'id', name: 'fk_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'fk_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, Relations_FkRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
@@ -549,6 +584,7 @@ const reducersSchema = __reducers(
   __reducerSchema("simpan_retur", SimpanReturReducer),
   __reducerSchema("simpan_stok_keluar", SimpanStokKeluarReducer),
   __reducerSchema("simpan_stok_masuk", SimpanStokMasukReducer),
+  __reducerSchema("submit_retry_task", SubmitRetryTaskReducer),
   __reducerSchema("tambah_deklarasi_cek", TambahDeklarasiCekReducer),
   __reducerSchema("update_deklarasi_cek", UpdateDeklarasiCekReducer),
   __reducerSchema("upsert_allow", UpsertAllowReducer),
@@ -582,7 +618,45 @@ const REMOTE_MODULE = {
 >;
 
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */
-export const tables: __QueryBuilder<typeof tablesSchema.schemaType> = __makeQueryBuilder(tablesSchema.schemaType);
+const __qb = __makeQueryBuilder(tablesSchema.schemaType);
+export const tables = {
+  allowlist: __qb.allowlist,
+  appConfig: __qb.appConfig,
+  cashEvent: __qb.cashEvent,
+  cek: __qb.cek,
+  customer: __qb.customer,
+  opname: __qb.opname,
+  opnameItem: __qb.opnameItem,
+  pembelian: __qb.pembelian,
+  pembelianItem: __qb.pembelianItem,
+  penjualan: __qb.penjualan,
+  penjualanItem: __qb.penjualanItem,
+  printJob: __qb.printJob,
+  printer: __qb.printer,
+  product: __qb.product,
+  pullTimer: __qb.pullTimer,
+  rekon: __qb.rekon,
+  retur: __qb.retur,
+  returItem: __qb.returItem,
+  salesInvoice: __qb.salesInvoice,
+  salesInvoiceItem: __qb.salesInvoiceItem,
+  salesman: __qb.salesman,
+  staff: __qb.staff,
+  stockSnapshot: __qb.stockSnapshot,
+  stokKeluar: __qb.stokKeluar,
+  stokKeluarItem: __qb.stokKeluarItem,
+  stokMasuk: __qb.stokMasuk,
+  stokMasukItem: __qb.stokMasukItem,
+  syncCursor: __qb.syncCursor,
+  syncLog: __qb.syncLog,
+  ticket: __qb.ticket,
+  ticketLine: __qb.ticketLine,
+  cronJobs: __qb.cronJobs,
+  relations: {
+    unique: __qb["relations.unique"],
+    fk: __qb["relations.fk"],
+  },
+} as const;
 
 /** The reducers available in this remote SpacetimeDB module. */
 export const reducers = __convertToAccessorMap(reducersSchema.reducersType.reducers);

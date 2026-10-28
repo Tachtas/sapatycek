@@ -56,12 +56,113 @@ export const Cek = __t.object("Cek", {
 });
 export type Cek = __Infer<typeof Cek>;
 
+export const CronFireRecovery = __t.object("CronFireRecovery", {
+  sequence: __t.u64(),
+  scheduledFor: __t.timestamp(),
+  error: __t.string(),
+});
+export type CronFireRecovery = __Infer<typeof CronFireRecovery>;
+
+export const CronJob = __t.object("CronJob", {
+  name: __t.string(),
+  get schedule() {
+    return CronSchedule;
+  },
+  get args() {
+    return CronJobArgsValue;
+  },
+  enabled: __t.bool(),
+  maxFailures: __t.u32(),
+  consecutiveFailures: __t.u32(),
+  fireCount: __t.u64(),
+  generation: __t.u64(),
+  lastRunAt: __t.option(__t.timestamp()),
+  nextRunAt: __t.option(__t.timestamp()),
+  disabledReason: __t.option(__t.string()),
+});
+export type CronJob = __Infer<typeof CronJob>;
+
+// The tagged union or sum type for the algebraic type `CronJobArgsValue`.
+export const CronJobArgsValue = __t.enum("CronJobArgsValue", {
+  SweepCek: __t.unit(),
+});
+export type CronJobArgsValue = __Infer<typeof CronJobArgsValue>;
+
+export const CronJobView = __t.object("CronJobView", {
+  name: __t.string(),
+  get schedule() {
+    return CronSchedule;
+  },
+  enabled: __t.bool(),
+  maxFailures: __t.u32(),
+  consecutiveFailures: __t.u32(),
+  fireCount: __t.u64(),
+  generation: __t.u64(),
+  lastRunAt: __t.option(__t.timestamp()),
+  nextRunAt: __t.option(__t.timestamp()),
+  disabledReason: __t.option(__t.string()),
+});
+export type CronJobView = __Infer<typeof CronJobView>;
+
+export const CronJobs = __t.object("CronJobs", {});
+export type CronJobs = __Infer<typeof CronJobs>;
+
+export const CronReconcileTick = __t.object("CronReconcileTick", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  key: __t.string(),
+});
+export type CronReconcileTick = __Infer<typeof CronReconcileTick>;
+
+export const CronRun = __t.object("CronRun", {
+  invocationId: __t.string(),
+  jobName: __t.string(),
+  generation: __t.u64(),
+  sequence: __t.u64(),
+  scheduledFor: __t.timestamp(),
+  completedAt: __t.timestamp(),
+  get status() {
+    return CronRunStatus;
+  },
+  error: __t.option(__t.string()),
+});
+export type CronRun = __Infer<typeof CronRun>;
+
+// The tagged union or sum type for the algebraic type `CronRunStatus`.
+export const CronRunStatus = __t.enum("CronRunStatus", {
+  Ok: __t.unit(),
+  Failed: __t.unit(),
+});
+export type CronRunStatus = __Infer<typeof CronRunStatus>;
+
+// The tagged union or sum type for the algebraic type `CronSchedule`.
+export const CronSchedule = __t.enum("CronSchedule", {
+  get Cron() {
+    return CronSpec;
+  },
+  get Every() {
+    return EverySpec;
+  },
+});
+export type CronSchedule = __Infer<typeof CronSchedule>;
+
+export const CronSpec = __t.object("CronSpec", {
+  expression: __t.string(),
+  timezone: __t.string(),
+});
+export type CronSpec = __Infer<typeof CronSpec>;
+
 export const Customer = __t.object("Customer", {
   id: __t.string(),
   label: __t.string(),
   outlet: __t.string(),
 });
 export type Customer = __Infer<typeof Customer>;
+
+export const EverySpec = __t.object("EverySpec", {
+  seconds: __t.u32(),
+});
+export type EverySpec = __Infer<typeof EverySpec>;
 
 export const Opname = __t.object("Opname", {
   transNo: __t.string(),
@@ -195,6 +296,53 @@ export const Rekon = __t.object("Rekon", {
 });
 export type Rekon = __Infer<typeof Rekon>;
 
+export const RetryAdminIdentity = __t.object("RetryAdminIdentity", {
+  identity: __t.identity(),
+  addedAt: __t.timestamp(),
+});
+export type RetryAdminIdentity = __Infer<typeof RetryAdminIdentity>;
+
+// The tagged union or sum type for the algebraic type `RetryArgs`.
+export const RetryArgs = __t.enum("RetryArgs", {
+  get SyncOrder() {
+    return SyncOrderTask;
+  },
+});
+export type RetryArgs = __Infer<typeof RetryArgs>;
+
+export const RetryHistory = __t.object("RetryHistory", {
+  id: __t.u64(),
+  taskName: __t.string(),
+  attempt: __t.u8(),
+  get status() {
+    return RetryHistoryStatus;
+  },
+  error: __t.option(__t.string()),
+  ranAt: __t.timestamp(),
+});
+export type RetryHistory = __Infer<typeof RetryHistory>;
+
+// The tagged union or sum type for the algebraic type `RetryHistoryStatus`.
+export const RetryHistoryStatus = __t.enum("RetryHistoryStatus", {
+  Ok: __t.unit(),
+  Failed: __t.unit(),
+  GaveUp: __t.unit(),
+});
+export type RetryHistoryStatus = __Infer<typeof RetryHistoryStatus>;
+
+export const RetryTask = __t.object("RetryTask", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  name: __t.string(),
+  get args() {
+    return RetryArgs;
+  },
+  attempt: __t.u8(),
+  maxAttempts: __t.u8(),
+  backoffSecs: __t.u32(),
+});
+export type RetryTask = __Infer<typeof RetryTask>;
+
 export const Retur = __t.object("Retur", {
   returnNo: __t.string(),
   outlet: __t.string(),
@@ -322,6 +470,18 @@ export const StokMasukItem = __t.object("StokMasukItem", {
 });
 export type StokMasukItem = __Infer<typeof StokMasukItem>;
 
+export const SweepCekFire = __t.object("SweepCekFire", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  jobName: __t.string(),
+  generation: __t.u64(),
+  targetAt: __t.option(__t.timestamp()),
+  get recovery() {
+    return __t.option(CronFireRecovery);
+  },
+});
+export type SweepCekFire = __Infer<typeof SweepCekFire>;
+
 export const SyncCursor = __t.object("SyncCursor", {
   key: __t.string(),
   lastModified: __t.string(),
@@ -337,6 +497,12 @@ export const SyncLog = __t.object("SyncLog", {
   lastSyncedAt: __t.timestamp(),
 });
 export type SyncLog = __Infer<typeof SyncLog>;
+
+export const SyncOrderTask = __t.object("SyncOrderTask", {
+  orderNo: __t.string(),
+  outlet: __t.string(),
+});
+export type SyncOrderTask = __Infer<typeof SyncOrderTask>;
 
 export const Ticket = __t.object("Ticket", {
   id: __t.u64(),
