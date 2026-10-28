@@ -112,6 +112,16 @@
   onMount(() => {
     hubungkanSpacetimeDB();
     inputCepatEl?.focus();
+    // Kursor kasir tidak boleh keluar dari pasangan input Cek/Bayar:
+    // klik pada area non-interaktif (baris tabel, kartu, celah) tidak
+    // memindahkan fokus — hanya klik pada tombol/input/link yang boleh.
+    document.addEventListener('pointerdown', (e) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t === inputCepatEl || t === inputBayarEl) return;
+      if (t.closest('button, input, select, textarea, a, [contenteditable]')) return;
+      e.preventDefault();
+    });
   });
 
   function hubungkanSpacetimeDB() {
@@ -395,6 +405,8 @@
       });
     } catch (err: any) {
       setPesanGalat(`Gagal update: ${err.message || err}`);
+    } finally {
+      inputCepatEl?.focus();
     }
   }
 
@@ -411,6 +423,8 @@
       });
     } catch (err: any) {
       setPesanGalat(`Gagal ubah kredit: ${err.message || err}`);
+    } finally {
+      inputCepatEl?.focus();
     }
   }
 
@@ -420,6 +434,8 @@
       await conn?.reducers.hapusDeklarasiCek({ id });
     } catch (err: any) {
       setPesanGalat(`Gagal hapus: ${err.message || err}`);
+    } finally {
+      inputCepatEl?.focus();
     }
   }
 
