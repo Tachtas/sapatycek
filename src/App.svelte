@@ -473,6 +473,8 @@
 </script>
 
 <div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
+  <!-- STICKY WRAPPER: card info + input kasir + tabs tetap di atas saat scroll -->
+  <div class="sticky top-0 z-20 space-y-2 bg-slate-50 pt-1 pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4">
   <!-- 1. KARTU INFORMASI HEADER (UKURAN LEBIH KECIL, RAMPING) -->
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
     <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
@@ -632,6 +634,7 @@
       </div>
     {/if}
   </div>
+  </div><!-- /sticky wrapper -->
 
   <!-- CONTENT TAB 1: DAFTAR CEK (KOLOM STATUS DIHAPUS, ADA KREDIT?, KLIK 2x EDIT, FLASH SAAT BAYAR FOKUS) -->
   {#if tabAktif === 'cek'}
@@ -643,7 +646,7 @@
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
+            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th class="p-2.5">Jam</th>
                 <th class="p-2.5">Salesman</th>
