@@ -354,7 +354,7 @@
     nilaiAwalEdit = nilai;
     await tick();
     inputEditEl?.focus();
-    inputEditEl?.select();
+    if (inputEditEl && inputEditEl instanceof HTMLInputElement) inputEditEl.select();
   }
 
   function batalEdit() {
@@ -620,15 +620,16 @@
     </div>
 
     {#if tabAktif === 'cek'}
-      <div class="flex gap-2 w-full sm:w-auto">
-        <select
-          bind:value={filterStatus}
-          class="text-xs bg-white border border-slate-200 rounded-md px-2 py-1 outline-none font-medium"
-        >
-          <option value="semua">Semua Cek</option>
-          <option value="kurang_bayar">Kurang Bayar (Ungu)</option>
-          <option value="kredit">Kredit (Kuning)</option>
-        </select>
+      <div class="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
+        {#each [['semua', 'Semua'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as [v, label] (v)}
+          <button
+            type="button"
+            onclick={() => { filterStatus = v; }}
+            class="px-2.5 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-colors {filterStatus === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}"
+          >
+            {label}
+          </button>
+        {/each}
         <input
           bind:value={cariTeks}
           placeholder="Cari salesman / order..."
@@ -677,20 +678,22 @@
                     title="Klik 2x untuk ubah salesman"
                   >
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'salesman'}
-                      <select
-                        bind:this={inputEditEl}
-                        bind:value={selEdit.nilai}
-                        onchange={() => simpanEdit(c)}
-                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
-                        onkeydown={(e) => {
-                          if (e.key === 'Escape') batalEdit();
-                        }}
-                        class="h-7 rounded border border-blue-600 bg-white px-1 text-xs font-bold text-slate-900 outline-none shadow-xs"
-                      >
-                        {#each daftarSalesmanAktif as s (s.kode || s.nama)}
-                          <option value={s.nama}>{s.nama}</option>
-                        {/each}
-                      </select>
+                      <span class="font-bold text-blue-700 underline">{c.salesmanNama}</span>
+                      <!-- Picker bottom-sheet: pengganti dropdown native (tahan semua browser) -->
+                      <div class="fixed inset-0 z-50 bg-slate-900/40" onclick={() => batalEdit()}>
+                        <div class="absolute left-2 right-2 bottom-2 bg-white rounded-xl shadow-2xl p-2 max-h-[70vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+                          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1.5">Pilih salesman</div>
+                          {#each daftarSalesmanAktif as s (s.nama)}
+                            <button
+                              type="button"
+                              onclick={() => { selEdit.nilai = s.nama; simpanEdit(c); }}
+                              class="w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-colors {selEdit.nilai === s.nama ? 'bg-blue-600 text-white' : 'text-slate-900 active:bg-slate-100'}"
+                            >
+                              {s.nama}
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
                     {:else}
                       <span class="font-bold text-slate-900">{c.salesmanNama}</span>
                     {/if}
