@@ -11,6 +11,7 @@ import AddSalesInvoiceItemReducer from "../add_sales_invoice_item_reducer";
 import CatatBayarCekReducer from "../catat_bayar_cek_reducer";
 import CatatSyncLogReducer from "../catat_sync_log_reducer";
 import HapusDeklarasiCekReducer from "../hapus_deklarasi_cek_reducer";
+import HapusPenjualanReducer from "../hapus_penjualan_reducer";
 import HapusSalesmanReducer from "../hapus_salesman_reducer";
 import JadikanAdminPertamaReducer from "../jadikan_admin_pertama_reducer";
 import KlaimAkunReducer from "../klaim_akun_reducer";
@@ -50,6 +51,7 @@ export type AddSalesInvoiceItemParams = __Infer<typeof AddSalesInvoiceItemReduce
 export type CatatBayarCekParams = __Infer<typeof CatatBayarCekReducer>;
 export type CatatSyncLogParams = __Infer<typeof CatatSyncLogReducer>;
 export type HapusDeklarasiCekParams = __Infer<typeof HapusDeklarasiCekReducer>;
+export type HapusPenjualanParams = __Infer<typeof HapusPenjualanReducer>;
 export type HapusSalesmanParams = __Infer<typeof HapusSalesmanReducer>;
 export type JadikanAdminPertamaParams = __Infer<typeof JadikanAdminPertamaReducer>;
 export type KlaimAkunParams = __Infer<typeof KlaimAkunReducer>;

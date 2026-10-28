@@ -39,6 +39,7 @@ import AddSalesInvoiceItemReducer from "./add_sales_invoice_item_reducer";
 import CatatBayarCekReducer from "./catat_bayar_cek_reducer";
 import CatatSyncLogReducer from "./catat_sync_log_reducer";
 import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
+import HapusPenjualanReducer from "./hapus_penjualan_reducer";
 import HapusSalesmanReducer from "./hapus_salesman_reducer";
 import JadikanAdminPertamaReducer from "./jadikan_admin_pertama_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
@@ -523,6 +524,7 @@ const reducersSchema = __reducers(
   __reducerSchema("catat_bayar_cek", CatatBayarCekReducer),
   __reducerSchema("catat_sync_log", CatatSyncLogReducer),
   __reducerSchema("hapus_deklarasi_cek", HapusDeklarasiCekReducer),
+  __reducerSchema("hapus_penjualan", HapusPenjualanReducer),
   __reducerSchema("hapus_salesman", HapusSalesmanReducer),
   __reducerSchema("jadikan_admin_pertama", JadikanAdminPertamaReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
