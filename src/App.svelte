@@ -48,7 +48,7 @@
 
   // Filter & tab
   let cariTeks = $state('');
-  let filterStatus = $state<'semua' | 'kredit' | 'kurang_bayar'>('semua');
+  let filterStatus = $state<'semua' | 'belum_input' | 'kredit' | 'kurang_bayar'>('semua');
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
@@ -452,6 +452,7 @@
     const q = cariTeks.trim().toLowerCase();
     return daftarCek.filter((c) => {
       if (filterStatus === 'kredit' && !c.kredit) return false;
+      if (filterStatus === 'belum_input' && (c.orderNo || c.status !== 'Belum Cocok')) return false;
       if (filterStatus === 'kurang_bayar' && (c.kredit || Number(c.dibayar) >= Number(c.nominal))) return false;
       if (q) {
         const match =
@@ -621,7 +622,7 @@
 
     {#if tabAktif === 'cek'}
       <div class="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
-        {#each [['semua', 'Semua'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as [v, label] (v)}
+        {#each [['semua', 'Semua'], ['belum_input', 'Belum Input'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as [v, label] (v)}
           <button
             type="button"
             onclick={() => { filterStatus = v; }}
