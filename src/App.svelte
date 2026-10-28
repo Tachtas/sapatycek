@@ -80,15 +80,16 @@
       .sort((a: any, b: any) => a.nama.localeCompare(b.nama))
   );
 
-  // Peta shortcut kode salesman dari nama
-  const kodeSalesMap = $derived.by(() => {
-    const map = new Map<string, { nama: string; kode: string }>();
-    for (const s of daftarSalesmanAktif) {
-      map.set(s.kode.toLowerCase(), { nama: s.nama, kode: s.kode.toLowerCase() });
-      map.set(s.nama.toLowerCase(), { nama: s.nama, kode: s.kode.toLowerCase() });
-    }
-    return map;
-  });
+  // Cari dari daftar salesman aktif: nama persis -> kode persis -> huruf awal.
+  function cariSalesmanAktif(input: string): string {
+    const teks = input.trim().toLowerCase();
+    if (!teks) return '';
+    const nama = daftarSalesmanAktif.find((s) => s.nama.toLowerCase() === teks)?.nama;
+    if (nama) return nama;
+    const kode = daftarSalesmanAktif.find((s) => s.kode.toLowerCase() === teks)?.nama;
+    if (kode) return kode;
+    return daftarSalesmanAktif.find((s) => s.kode.toLowerCase() === teks[0])?.nama || '';
+  }
 
   // Target cek terbaru yang belum lunas (bukan kredit)
   const targetBayar = $derived.by(() => {
@@ -220,8 +221,8 @@
     cepatTeks = '';
     inputBayarEl?.focus();
 
-    const infoSales = kodeSalesMap.get(kode);
-    const salesmanNama = infoSales ? infoSales.nama : kode.toUpperCase();
+    const hasilSales = cariSalesmanAktif(kode);
+    const salesmanNama = hasilSales || kode.toUpperCase();
     const salesman = salesmanNama;
 
     let tipe = 'Ecer';
@@ -369,8 +370,8 @@
       const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
       dibayar = BigInt(ribuan * 1000);
     } else if (s.kolom === 'salesman') {
-      const info = kodeSalesMap.get(s.nilai.trim().toLowerCase()) || kodeSalesMap.get(s.nilai.trim().toLowerCase()[0]);
-      salesmanNama = info ? info.nama : s.nilai.trim();
+      const hasil = cariSalesmanAktif(s.nilai);
+      salesmanNama = hasil || s.nilai.trim();
       salesman = salesmanNama;
     }
 
