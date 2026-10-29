@@ -62,7 +62,8 @@
   let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
   // Galeri bukti gambar: dibuka saat kursor menyentuh baris cek.
   let galeri = $state<{ cek: any; idx: number } | null>(null);
-  let sorot = $state<number | null>(null); // thumbnail yang sedang di-hover (preview besar)
+  let sorot = $state<number | null>(null); // thumbnail yang sedang di-hover (pratinjau)
+  let besar = $state(false); // gambar besar dibuka DI HALAMAN (bukan window baru)
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
@@ -148,14 +149,14 @@
       e.preventDefault();
     });
 
-    // Galeri: Escape menutup, panah kiri/kanan berpindah gambar.
+    // Galeri: Esc menutup (gambar besar dulu, baru galeri), panah berpindah gambar.
     document.addEventListener('keydown', (e) => {
       if (!galeri) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        tutupGaleri();
-      }
-      else if (e.key === 'ArrowRight') geserGaleri(1);
+        if (besar) tutupBesar();
+        else tutupGaleri();
+      } else if (e.key === 'ArrowRight') geserGaleri(1);
       else if (e.key === 'ArrowLeft') geserGaleri(-1);
     });
 
@@ -599,32 +600,44 @@
   }
 
   // Akordion: klik tombol foto → baris itu membuka galeri di bawahnya.
+  // Galeri layar penuh: klik tombol foto -> panel menutupi layar.
   function bukaGaleri(c: any, idx = 0) {
     if (fotoCek(c).length === 0) return;
-    if (galeri?.cek?.id === c.id) {
-      galeri = null; // klik lagi = tutup (buka-tutup cepat)
-      return;
-    }
     galeri = { cek: c, idx };
+    sorot = null;
+    besar = false;
+    document.body.style.overflow = 'hidden'; // kunci gulir layar belakang
   }
 
-  // Fokus kembali ke input cek supaya kasir bisa langsung mengetik lagi.
-  // Urutan penting: pindahkan fokus SEBELUM akordion dibuang dari DOM — kalau
-  // node yang sedang difokus dihapus, browser memindahkan fokus ke <body>.
+  // Tutup galeri + kembalikan fokus ke input cek supaya kasir bisa langsung
+  // mengetik lagi. Urutan penting: pindahkan fokus SEBELUM panel dibuang dari
+  // DOM — kalau node yang sedang difokus dihapus, browser memindahkannya ke <body>.
   function tutupGaleri() {
-    inputCepatEl?.focus();
     galeri = null;
     sorot = null;
-    // Penjaga: sebagian browser memindahkan fokus ke <body> setelah node
-    // dihapus, jadi fokus dikembalikan sekali lagi setelah render selesai.
+    besar = false;
+    document.body.style.overflow = '';
+    inputCepatEl?.focus();
     setTimeout(() => inputCepatEl?.focus(), 30);
+  }
+
+  function bukaBesar(i: number) {
+    if (!galeri) return;
+    galeri = { ...galeri, idx: i };
+    besar = true;
+  }
+
+  function tutupBesar() {
+    besar = false;
   }
 
   function geserGaleri(arah: number) {
     if (!galeri) return;
     const jumlah = fotoCek(galeri.cek).length;
     if (!jumlah) return;
-    galeri = { ...galeri, idx: (galeri.idx + arah + jumlah) % jumlah };
+    const baru = (galeri.idx + arah + jumlah) % jumlah;
+    galeri = { ...galeri, idx: baru };
+    sorot = baru;
   }
 
   // ---- Beda tafsir pembayaran (cek kasir vs yang diinput ke Ollsera) -------
@@ -1220,9 +1233,9 @@
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
                         class="mt-1 inline-block px-1.5 py-0.5 rounded border font-bold {galeri?.cek?.id === c.id ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 bg-slate-50 text-slate-700'}"
-                        title="Lihat bukti gambar (buka-tutup akordion)"
+                        title="Buka galeri bukti gambar (layar penuh)"
                       >
-                        📷 {fotoCek(c).length}{galeri?.cek?.id === c.id ? ' ▴' : ' ▾'}
+                        📷 {fotoCek(c).length}
                       </button>
                     {/if}
                   </td>
@@ -1238,85 +1251,114 @@
                   </td>
                 </tr>
 
-                <!-- AKORDION BUKTI GAMBAR: klik tombol foto -> baris membuka galeri -->
-                {#if galeri && galeri.cek.id === c.id}
-                  {@const gambar = fotoCek(c)}
-                  <tr class="bg-slate-50">
-                    <td colspan="9" class="p-0 border-b-2 border-slate-300">
-                      <div class="px-3 py-2 flex flex-col gap-2">
-                        <div class="flex items-center justify-between">
-                          <div class="text-[11px] font-bold text-slate-700">
-                            📷 Bukti gambar · {c.salesmanNama} · {rupiah(Number(c.nominal))} · {c.jam.slice(0, 5)}
-                          </div>
-                          <button
-                            type="button"
-                            data-ui="tutupGaleri"
-                            onclick={tutupGaleri}
-                            class="text-[11px] font-bold px-2 py-0.5 rounded border border-slate-300 bg-white text-slate-700"
-                            title="Tutup galeri (Esc)"
-                          >
-                            ✕ Tutup
-                          </button>
-                        </div>
-
-                        <!-- PREVIEW BESAR: muncul hanya saat thumbnail di-hover -->
-                        {#if sorot !== null && gambar[sorot]}
-                          <div class="flex items-start gap-3">
-                            <a href={gambar[sorot].url} target="_blank" rel="noopener" class="shrink-0">
-                              <img
-                                src={gambar[sorot].url}
-                                alt={gambar[sorot].filename ?? 'bukti cek'}
-                                class="h-44 w-44 object-cover rounded border-2 border-blue-500 bg-white"
-                                loading="lazy"
-                              />
-                            </a>
-                            <div class="text-[11px] text-slate-600 font-semibold">
-                              Gambar {sorot + 1} dari {gambar.length}
-                              <div class="text-[10px] text-slate-400 font-normal">
-                                klik untuk buka penuh · Esc menutup galeri
-                              </div>
-                            </div>
-                          </div>
-                        {/if}
-
-                        <!-- SEMUA thumbnail (klik = buka penuh, hover = preview besar) -->
-                        <div class="flex flex-wrap gap-1.5 content-start max-h-56 overflow-y-auto">
-                          {#each gambar as g, i (g.url)}
-                            <button
-                              type="button"
-                              data-ui="thumbBukti"
-                              onclick={() => window.open(g.url, '_blank', 'noopener')}
-                              onmouseenter={() => (sorot = i)}
-                              onmouseleave={() => (sorot = null)}
-                              onfocus={() => (sorot = i)}
-                              onblur={() => (sorot = null)}
-                              class="rounded border-2 {sorot === i ? 'border-blue-600' : 'border-slate-200'} bg-white"
-                              title="Gambar {i + 1} dari {gambar.length} — klik untuk buka penuh"
-                            >
-                              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-14 w-14 object-cover rounded" loading="lazy" />
-                            </button>
-                          {/each}
-                        </div>
-
-                        <div class="text-[10px] text-slate-500">
-                          {gambar.length} gambar tersedia
-                          {#if sorot !== null && gambar[sorot]}
-                            · sedang dilihat: gambar {sorot + 1} ·
-                            <a href={gambar[sorot].url} target="_blank" rel="noopener" class="font-bold text-blue-700">buka penuh ↗</a>
-                          {:else}
-                            · arahkan kursor ke gambar kecil untuk pratinjau besar
-                          {/if}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                {/if}
               {/each}
             </tbody>
           </table>
         </div>
       {/if}
     </div>
+  {/if}
+
+  <!-- GALERI LAYAR PENUH (klik tombol foto pada baris cek) -->
+  {#if galeri}
+    {@const gambar = fotoCek(galeri.cek)}
+    <div
+      class="fixed inset-0 z-[80] bg-slate-900/95 flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Galeri bukti cek"
+    >
+      <!-- KEPALA -->
+      <div class="flex items-center justify-between gap-2 px-4 py-3 bg-slate-900 text-white shrink-0">
+        <div class="min-w-0">
+          <div class="text-sm font-bold truncate">📷 Bukti cek · {galeri.cek.salesmanNama}</div>
+          <div class="text-[11px] text-slate-300">
+            {rupiah(Number(galeri.cek.nominal))} · {galeri.cek.jam.slice(0, 5)} · {gambar.length} gambar
+          </div>
+        </div>
+        <button
+          type="button"
+          data-ui="tutupGaleri"
+          onclick={tutupGaleri}
+          class="shrink-0 px-3 py-2 rounded-lg bg-white text-slate-900 text-xs font-bold"
+          title="Tutup galeri (Esc)"
+        >
+          ✕ Tutup (Esc)
+        </button>
+      </div>
+
+      <!-- PRATINJAU: gambar yang sedang disorot kursor -->
+      {#if sorot !== null && gambar[sorot]}
+        <div class="flex-1 min-h-0 flex items-center justify-center p-3">
+          <img
+            src={gambar[sorot].url}
+            alt={gambar[sorot].filename ?? 'bukti cek'}
+            class="max-h-full max-w-full object-contain rounded-lg"
+            loading="lazy"
+          />
+        </div>
+      {:else}
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 text-xs gap-1">
+          <span class="text-2xl">🖼️</span>
+          <span>Klik gambar kecil untuk melihat ukuran besar</span>
+          <span class="text-slate-500">arahkan kursor ke gambar kecil untuk pratinjau</span>
+        </div>
+      {/if}
+
+      <!-- SEMUA GAMBAR KECIL -->
+      <div class="shrink-0 max-h-[40vh] overflow-y-auto px-3 pt-1 pb-3 bg-slate-900">
+        <div class="flex flex-wrap gap-2 justify-center">
+          {#each gambar as g, i (g.url)}
+            <button
+              type="button"
+              data-ui="thumbBukti"
+              onclick={() => bukaBesar(i)}
+              onmouseenter={() => (sorot = i)}
+              onmouseleave={() => (sorot = null)}
+              onfocus={() => (sorot = i)}
+              onblur={() => (sorot = null)}
+              class="rounded-lg border-2 p-0.5 bg-slate-800 {sorot === i || galeri.idx === i ? 'border-blue-400' : 'border-slate-700'}"
+              title="Gambar {i + 1} dari {gambar.length} — klik untuk melihat besar"
+            >
+              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-20 w-20 object-cover rounded" loading="lazy" />
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <!-- GAMBAR BESAR: dibuka DI HALAMAN INI (bukan window/tab baru) -->
+    {#if besar && gambar[galeri.idx]}
+      <div class="fixed inset-0 z-[90] bg-black/95 flex flex-col" onclick={tutupBesar} role="presentation">
+        <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-2 text-white" onclick={(e) => e.stopPropagation()}>
+          <span class="text-xs font-mono">{galeri.idx + 1} / {gambar.length}</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick={() => geserGaleri(-1)} class="px-3 py-2 rounded-lg bg-slate-700 text-white text-xs font-bold">
+              ‹ Sebelumnya
+            </button>
+            <button type="button" onclick={() => geserGaleri(1)} class="px-3 py-2 rounded-lg bg-slate-700 text-white text-xs font-bold">
+              Berikutnya ›
+            </button>
+            <button
+              type="button"
+              data-ui="tutupBesar"
+              onclick={tutupBesar}
+              class="px-3 py-2 rounded-lg bg-white text-slate-900 text-xs font-bold"
+              title="Kembali ke daftar gambar (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 min-h-0 flex items-center justify-center p-2" onclick={(e) => e.stopPropagation()}>
+          <img
+            src={gambar[galeri.idx].url}
+            alt={gambar[galeri.idx].filename ?? 'bukti cek'}
+            class="max-h-full max-w-full object-contain"
+          />
+        </div>
+      </div>
+    {/if}
   {/if}
 
   <!-- CONTENT TAB 2: PENJUALAN TANPA CEK -->
