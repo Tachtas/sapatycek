@@ -42,6 +42,7 @@ import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
 import HapusKeranjangReducer from "./hapus_keranjang_reducer";
 import HapusPenjualanReducer from "./hapus_penjualan_reducer";
 import HapusSalesmanReducer from "./hapus_salesman_reducer";
+import ImporAkunDariArsipReducer from "./impor_akun_dari_arsip_reducer";
 import ImporCekDariArsipReducer from "./impor_cek_dari_arsip_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
 import LanjutkanPenjualanReducer from "./lanjutkan_penjualan_reducer";
@@ -83,15 +84,11 @@ import PrinterRow from "./printer_table";
 import ProductRow from "./product_table";
 import PullTimerRow from "./pull_timer_table";
 import RekonRow from "./rekon_table";
-import SalesInvoiceRow from "./sales_invoice_table";
-import SalesInvoiceItemRow from "./sales_invoice_item_table";
 import SalesmanRow from "./salesman_table";
 import StaffRow from "./staff_table";
 import StockSnapshotRow from "./stock_snapshot_table";
 import SyncCursorRow from "./sync_cursor_table";
 import SyncLogRow from "./sync_log_table";
-import TicketRow from "./ticket_table";
-import TicketLineRow from "./ticket_line_table";
 
 // Import namespace table schema definitions
 import Relations_FkRow from "./relations/fk_table";
@@ -247,31 +244,6 @@ const tablesSchema = __schema({
       { name: 'rekon_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RekonRow),
-  salesInvoice: __table({
-    name: 'sales_invoice',
-    indexes: [
-      { accessor: 'id', name: 'sales_invoice_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'sales_invoice_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, SalesInvoiceRow),
-  salesInvoiceItem: __table({
-    name: 'sales_invoice_item',
-    indexes: [
-      { accessor: 'id', name: 'sales_invoice_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_invoice', name: 'sales_invoice_item_invoice_id_idx_btree', algorithm: 'btree', columns: [
-        'invoiceId',
-      ] },
-    ],
-    constraints: [
-      { name: 'sales_invoice_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, SalesInvoiceItemRow),
   salesman: __table({
     name: 'salesman',
     indexes: [
@@ -330,31 +302,6 @@ const tablesSchema = __schema({
       { name: 'sync_log_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, SyncLogRow),
-  ticket: __table({
-    name: 'ticket',
-    indexes: [
-      { accessor: 'id', name: 'ticket_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'ticket_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, TicketRow),
-  ticketLine: __table({
-    name: 'ticket_line',
-    indexes: [
-      { accessor: 'id', name: 'ticket_line_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_ticket', name: 'ticket_line_ticket_id_idx_btree', algorithm: 'btree', columns: [
-        'ticketId',
-      ] },
-    ],
-    constraints: [
-      { name: 'ticket_line_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, TicketLineRow),
   cronJobs: __table({
     name: 'cron_jobs',
     indexes: [
@@ -396,6 +343,7 @@ const reducersSchema = __reducers(
   __reducerSchema("hapus_keranjang", HapusKeranjangReducer),
   __reducerSchema("hapus_penjualan", HapusPenjualanReducer),
   __reducerSchema("hapus_salesman", HapusSalesmanReducer),
+  __reducerSchema("impor_akun_dari_arsip", ImporAkunDariArsipReducer),
   __reducerSchema("impor_cek_dari_arsip", ImporCekDariArsipReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
   __reducerSchema("lanjutkan_penjualan", LanjutkanPenjualanReducer),
@@ -455,15 +403,11 @@ export const tables = {
   product: __qb.product,
   pullTimer: __qb.pullTimer,
   rekon: __qb.rekon,
-  salesInvoice: __qb.salesInvoice,
-  salesInvoiceItem: __qb.salesInvoiceItem,
   salesman: __qb.salesman,
   staff: __qb.staff,
   stockSnapshot: __qb.stockSnapshot,
   syncCursor: __qb.syncCursor,
   syncLog: __qb.syncLog,
-  ticket: __qb.ticket,
-  ticketLine: __qb.ticketLine,
   cronJobs: __qb.cronJobs,
   relations: {
     fk: __qb["relations.fk"],

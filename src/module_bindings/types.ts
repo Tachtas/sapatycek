@@ -311,32 +311,6 @@ export const RetryTask = __t.object("RetryTask", {
 });
 export type RetryTask = __Infer<typeof RetryTask>;
 
-export const SalesInvoice = __t.object("SalesInvoice", {
-  id: __t.u64(),
-  outlet: __t.string(),
-  salesman: __t.identity(),
-  customerId: __t.option(__t.string()),
-  payMode: __t.option(__t.string()),
-  status: __t.string(),
-  openedAt: __t.timestamp(),
-  sealedAt: __t.option(__t.timestamp()),
-  subtotal: __t.i64(),
-  diskon: __t.i64(),
-  total: __t.i64(),
-});
-export type SalesInvoice = __Infer<typeof SalesInvoice>;
-
-export const SalesInvoiceItem = __t.object("SalesInvoiceItem", {
-  id: __t.u64(),
-  invoiceId: __t.u64(),
-  sku: __t.string(),
-  qty: __t.i32(),
-  priceEach: __t.i64(),
-  discount: __t.i64(),
-  flag: __t.string(),
-});
-export type SalesInvoiceItem = __Infer<typeof SalesInvoiceItem>;
-
 export const Salesman = __t.object("Salesman", {
   id: __t.string(),
   nama: __t.string(),
@@ -398,30 +372,4 @@ export const SyncOrderTask = __t.object("SyncOrderTask", {
   outlet: __t.string(),
 });
 export type SyncOrderTask = __Infer<typeof SyncOrderTask>;
-
-export const Ticket = __t.object("Ticket", {
-  id: __t.u64(),
-  outlet: __t.string(),
-  salesman: __t.identity(),
-  customerId: __t.option(__t.string()),
-  payMode: __t.option(__t.string()),
-  status: __t.string(),
-  openedAt: __t.timestamp(),
-  sealedAt: __t.option(__t.timestamp()),
-  subtotal: __t.i64(),
-  diskon: __t.i64(),
-  total: __t.i64(),
-});
-export type Ticket = __Infer<typeof Ticket>;
-
-export const TicketLine = __t.object("TicketLine", {
-  id: __t.u64(),
-  ticketId: __t.u64(),
-  sku: __t.string(),
-  qty: __t.i32(),
-  priceEach: __t.i64(),
-  discount: __t.i64(),
-  flag: __t.string(),
-});
-export type TicketLine = __Infer<typeof TicketLine>;
 
