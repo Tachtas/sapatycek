@@ -62,7 +62,6 @@
   let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
   // Galeri bukti gambar: dibuka saat kursor menyentuh baris cek.
   let galeri = $state<{ cek: any; idx: number } | null>(null);
-  let timerGaleri: any = null;
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
@@ -76,8 +75,8 @@
     // Permanen: tidak ada setTimeout yang menghapus pesanPelunasan
   }
 
-  // Pelunasan tetap tampil sampai kasir menutupnya sendiri atau pembayaran
-  // berikutnya — sebelumnya info ini bisa hilang begitu input cek dimulai.
+  // Pelunasan hilang otomatis begitu kasir mulai mengetik cek baru (transaksi
+  // baru), atau saat tombol ✕ ditekan.
   function tutupPelunasan() {
     pesanPelunasan = null;
   }
@@ -295,6 +294,8 @@
     ketikTerakhir = Date.now();
     simpanDraf();
     const teks = cepatTeks.trim();
+    // Transaksi baru dimulai → keterangan pelunasan sebelumnya disembunyikan.
+    if (teks && pesanPelunasan) pesanPelunasan = null;
     if (cekLengkap(teks)) {
       kirimCepat();
     }
@@ -593,29 +594,22 @@
     return fotoPerCek.get(kunciFoto(c)) ?? [];
   }
 
+  // Akordion: klik tombol foto → baris itu membuka galeri di bawahnya.
   function bukaGaleri(c: any, idx = 0) {
     if (fotoCek(c).length === 0) return;
+    if (galeri?.cek?.id === c.id) {
+      galeri = null; // klik lagi = tutup (buka-tutup cepat)
+      return;
+    }
     galeri = { cek: c, idx };
   }
 
   function tutupGaleri() {
-    clearTimeout(timerGaleri);
     galeri = null;
   }
 
   // Kursor keluar dari baris: beri jeda singkat supaya kursor sempat pindah
   // ke panel galeri tanpa panel keburu tertutup.
-  function tundaTutupGaleri() {
-    clearTimeout(timerGaleri);
-    timerGaleri = setTimeout(() => {
-      galeri = null;
-    }, 260);
-  }
-
-  function tahanGaleri() {
-    clearTimeout(timerGaleri);
-  }
-
   function geserGaleri(arah: number) {
     if (!galeri) return;
     const jumlah = fotoCek(galeri.cek).length;
@@ -849,7 +843,7 @@
       <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cek diinput</div>
       <div class="text-sm font-bold text-slate-900">{ringkasan.jmlCek} cek · {rupiah(ringkasan.totalCek)}</div>
       <div class="text-[11px] font-mono {ringkasan.jmlBelumCocok > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
-        {ringkasan.jmlCocok} ada pasangan · {ringkasan.jmlBelumCocok} belum cocok
+        {ringkasan.jmlCocok} sudah input · {ringkasan.jmlBelumCocok} belum input
       </div>
     </div>
 
@@ -1086,8 +1080,6 @@
               {#each cekTersaring as c (c.id)}
                 {@const isTarget = isBayarFocused && targetBayar?.id === c.id}
                 <tr
-                  onmouseenter={() => { if (fotoCek(c).length) bukaGaleri(c); }}
-                  onmouseleave={() => { if (galeri?.cek?.id === c.id) tundaTutupGaleri(); }}
                   class="transition-colors {isTarget ? 'animate-flash-target font-semibold' : flashCekId === c.id ? 'bg-emerald-100' : c.kredit ? 'bg-amber-50' : Number(c.dibayar) < Number(c.nominal) ? 'bg-purple-50' : 'hover:bg-slate-50'}"
                 >
                   <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
@@ -1217,10 +1209,10 @@
                         type="button"
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
-                        class="mt-1 inline-block px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50 text-slate-700 font-bold"
-                        title="Lihat bukti gambar cek"
+                        class="mt-1 inline-block px-1.5 py-0.5 rounded border font-bold {galeri?.cek?.id === c.id ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 bg-slate-50 text-slate-700'}"
+                        title="Lihat bukti gambar (buka-tutup akordion)"
                       >
-                        📷 {fotoCek(c).length}
+                        📷 {fotoCek(c).length}{galeri?.cek?.id === c.id ? ' ▴' : ' ▾'}
                       </button>
                     {/if}
                   </td>
@@ -1235,60 +1227,68 @@
                     </button>
                   </td>
                 </tr>
+
+                <!-- AKORDION BUKTI GAMBAR: klik tombol foto -> baris membuka galeri -->
+                {#if galeri && galeri.cek.id === c.id}
+                  {@const gambar = fotoCek(c)}
+                  {@const aktif = gambar[galeri.idx] ?? gambar[0]}
+                  <tr class="bg-slate-50">
+                    <td colspan="9" class="p-0 border-b-2 border-slate-300">
+                      <div class="px-3 py-2 flex flex-col gap-2">
+                        <div class="flex items-center justify-between">
+                          <div class="text-[11px] font-bold text-slate-700">
+                            📷 Bukti gambar · {c.salesmanNama} · {rupiah(Number(c.nominal))} · {c.jam.slice(0, 5)}
+                          </div>
+                          <button
+                            type="button"
+                            data-ui="tutupGaleri"
+                            onclick={tutupGaleri}
+                            class="text-[11px] font-bold px-2 py-0.5 rounded border border-slate-300 bg-white text-slate-700"
+                            title="Tutup galeri (Esc)"
+                          >
+                            ✕ Tutup
+                          </button>
+                        </div>
+
+                        <div class="flex gap-3 items-start">
+                          {#if aktif}
+                            <a href={aktif.url} target="_blank" rel="noopener" class="shrink-0">
+                              <img
+                                src={aktif.url}
+                                alt={aktif.filename ?? 'bukti cek'}
+                                class="h-40 w-40 object-cover rounded border border-slate-300 bg-white"
+                                loading="lazy"
+                              />
+                            </a>
+                          {/if}
+                          <div class="flex-1 flex flex-wrap gap-1.5 content-start max-h-40 overflow-y-auto">
+                            {#each gambar.slice(0, 24) as g, i (g.url)}
+                              <button
+                                type="button"
+                                onclick={() => (galeri = { ...galeri!, idx: i })}
+                                class="rounded border-2 {i === galeri.idx ? 'border-blue-600' : 'border-slate-200'} bg-white"
+                                title="Gambar {i + 1} dari {gambar.length}"
+                              >
+                                <img src={g.url} alt={g.filename ?? 'bukti'} class="h-14 w-14 object-cover rounded" loading="lazy" />
+                              </button>
+                            {/each}
+                          </div>
+                        </div>
+
+                        <div class="text-[10px] text-slate-500">
+                          {galeri.idx + 1} / {gambar.length} gambar
+                          {#if gambar.length > 24}<span class="text-slate-400"> · 24 kecil pertama ditampilkan</span>{/if}
+                          {#if aktif} · <a href={aktif.url} target="_blank" rel="noopener" class="font-bold text-blue-700">buka penuh ↗</a>{/if}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                {/if}
               {/each}
             </tbody>
           </table>
         </div>
       {/if}
-    </div>
-  {/if}
-
-  <!-- GALERI BUKTI GAMBAR (muncul saat kursor menyentuh baris cek) -->
-  {#if galeri}
-    {@const gambar = fotoCek(galeri.cek)}
-    {@const aktif = gambar[galeri.idx] ?? gambar[0]}
-    <div
-      class="fixed right-3 bottom-3 z-[60] w-[320px] max-w-[92vw] bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden"
-      onmouseenter={tahanGaleri}
-      onmouseleave={tundaTutupGaleri}
-      role="dialog"
-      aria-label="Bukti gambar cek"
-    >
-      <div class="flex items-center justify-between px-3 py-2 bg-slate-900 text-white">
-        <div class="text-[11px] font-bold truncate">
-          Bukti · {galeri.cek.salesmanNama} · {rupiah(Number(galeri.cek.nominal))}
-        </div>
-        <button type="button" onclick={tutupGaleri} class="text-white font-bold px-1" title="Tutup (Esc)">✕</button>
-      </div>
-
-      {#if aktif}
-        <a href={aktif.url} target="_blank" rel="noopener" class="block bg-slate-100">
-          <img src={aktif.url} alt={aktif.filename ?? 'bukti cek'} class="w-full max-h-[52vh] object-contain" loading="lazy" />
-        </a>
-      {/if}
-
-      {#if gambar.length > 1}
-        <div class="flex items-center gap-1.5 px-2 py-2 overflow-x-auto bg-slate-50">
-          {#each gambar.slice(0, 12) as g, i (g.url)}
-            <button
-              type="button"
-              onclick={() => (galeri = { ...galeri!, idx: i })}
-              class="shrink-0 rounded overflow-hidden border-2 {i === galeri.idx ? 'border-blue-600' : 'border-transparent'}"
-              title="Gambar {i + 1} dari {gambar.length}"
-            >
-              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-12 w-12 object-cover" loading="lazy" />
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      <div class="flex items-center justify-between px-3 py-1.5 text-[10px] text-slate-500 border-t border-slate-200">
-        <span>
-          {galeri.idx + 1} / {gambar.length} gambar · {galeri.cek.jam.slice(0, 5)}
-          {#if gambar.length > 12}<span class="text-slate-400"> · 12 kecil pertama</span>{/if}
-        </span>
-        <a href={aktif?.url} target="_blank" rel="noopener" class="font-bold text-blue-700">Buka penuh ↗</a>
-      </div>
     </div>
   {/if}
 
