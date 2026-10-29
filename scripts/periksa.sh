@@ -5,11 +5,11 @@
 set -u
 cd "$(dirname "$0")/.."
 hasil=$(npx svelte-check --threshold error --output human 2>&1)
-fatal=$(printf '%s\n' "$hasil" | grep -E "Cannot find name|Unexpected token|is not defined" || true)
+fatal=$(printf '%s\n' "$hasil" | grep -E "Cannot find name|Cannot find module|Unexpected token|is not defined" || true)
 if [ -n "$fatal" ]; then
-  echo "GAGAL — ada nama tak dikenal / sintaks rusak:"
+  echo "GAGAL — nama/modul tak dikenal atau sintaks rusak:"
   printf '%s\n' "$fatal"
   exit 1
 fi
 printf '%s\n' "$hasil" | tail -1
-echo "OK — tidak ada nama tak dikenal."
+echo "OK — tidak ada nama/modul tak dikenal."

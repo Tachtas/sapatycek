@@ -2,6 +2,8 @@
   import { onMount, tick } from 'svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
+  import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan } from './lib/cek';
+  import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
 
   // Config SpacetimeDB
@@ -285,29 +287,7 @@
 
   // Pratinjau tafsir input: operator harus melihat nominal/tipe/salesman
   // SEBELUM menekan Enter — salah tafsir = uang salah di buku.
-  const pratinjauCek = $derived.by(() => {
-    const bersih = cepatTeks.trim().toLowerCase().replace(/[.\s]/g, '');
-    if (!bersih) return { jenis: 'kosong' as const, teks: '' };
-    // Baru angka nominal saja: jangan dianggap salah, minta kode salesman.
-    if (/^\d+$/.test(bersih)) {
-      return { jenis: 'sebagian' as const, teks: `${rupiah(Number(bersih) * 1000)} · tinggal kode salesman (ketuk di bawah)` };
-    }
-    const m = bersih.match(/^(\d+)([a-z0-9])(\d)?$/);
-    if (!m) return { jenis: 'salah' as const, teks: 'Format: nominal + kode + tipe (mis. 25m1)' };
-    const nominal = Number(m[1]) * 1000;
-    const nama = cariSalesmanAktif(m[2]);
-    if (!m[3]) {
-      return {
-        jenis: 'sebagian' as const,
-        teks: `${rupiah(nominal)} · ${nama || 'kode ' + m[2].toUpperCase() + ' tak dikenal'} · tinggal digit tipe (1 Ecer / 2 Obral / 3 Grosir)`,
-      };
-    }
-    const tipe = m[3] === '2' ? 'Obral' : m[3] === '3' ? 'Grosir' : 'Ecer';
-    if (!nama) {
-      return { jenis: 'salah' as const, teks: `${rupiah(nominal)} · kode ${m[2].toUpperCase()} tidak ada di daftar salesman aktif` };
-    }
-    return { jenis: 'siap' as const, teks: `${rupiah(nominal)} · ${tipe} · ${nama}` };
-  });
+  const pratinjauCek = $derived(uraiCek(cepatTeks, cariSalesmanAktif));
 
   // Kode salesman diambil dari papan ketuk supaya operator tidak perlu hafal
   // B=Nabil, C=Sindi, V=Silvia… (sumber salah input terbanyak).
@@ -324,27 +304,23 @@
     const teks = cepatTeks.trim().toLowerCase();
     if (!teks || menyimpanCek) return;
 
-    const match = teks.match(/^(\d+)([a-z])(\d)$/);
-    if (!match) return;
+    // Parser sintaks (bukan pratinjau): kode salesman tak dikenal tetap dicatat,
+    // yang penting input operator tidak pernah hilang.
+    const tafsir = parseCek(teks);
+    if (!tafsir) return;
 
-    const nominalRibuan = Number(match[1]);
-    const nominal = BigInt(nominalRibuan * 1000);
-    const kode = match[2];
-    const tipeDigit = match[3];
+    const nominal = BigInt(tafsir.nominal);
+    const kode = tafsir.kode;
+    const tipe = tafsir.tipeDigit === '2' ? 'Obral' : tafsir.tipeDigit === '3' ? 'Grosir' : 'Ecer';
 
-    pendingCekNominal = nominalRibuan * 1000;
+    pendingCekNominal = tafsir.nominal;
 
     // Pindahkan kursor SEKETIKA (0ms) ke kotak Bayar
     cepatTeks = '';
     inputBayarEl?.focus();
 
-    const hasilSales = cariSalesmanAktif(kode);
-    const salesmanNama = hasilSales || kode.toUpperCase();
+    const salesmanNama = cariSalesmanAktif(kode) || kode.toUpperCase();
     const salesman = salesmanNama;
-
-    let tipe = 'Ecer';
-    if (tipeDigit === '2') tipe = 'Obral';
-    else if (tipeDigit === '3') tipe = 'Grosir';
 
     const jam = new Date().toTimeString().slice(0, 8);
 
@@ -567,28 +543,7 @@
   }
 
   // Ringkasan Rekonsiliasi
-  const ringkasan = $derived.by(() => {
-    const totalCek = daftarCek.reduce((a, b) => a + Number(b.nominal), 0);
-    const totalDibayar = daftarCek.reduce((a, b) => a + Number(b.dibayar), 0);
-    const cocokList = daftarCek.filter((c) => c.status === 'Cocok' || c.status === 'Cocok Tanpa Bukti Waktu');
-    const belumCocokList = daftarCek.filter((c) => c.status === 'Belum Cocok');
-
-    const totalPenjualan = daftarPenjualan.reduce((a, b) => a + Number(b.total), 0);
-
-    const orderNoCek = new Set(daftarCek.map((c) => c.orderNo).filter(Boolean));
-    const penjualanTanpaCek = daftarPenjualan.filter((p) => !orderNoCek.has(p.orderNo));
-
-    return {
-      totalCek,
-      totalDibayar,
-      totalPenjualan,
-      selisih: totalPenjualan - totalCek,
-      jmlCek: daftarCek.length,
-      jmlCocok: cocokList.length,
-      jmlBelumCocok: belumCocokList.length,
-      penjualanTanpaCek,
-    };
-  });
+  const ringkasan = $derived(hitungRingkasan(daftarCek, daftarPenjualan));
 
   // Filter daftar cek untuk tabel
   const cekTersaring = $derived.by(() => {
@@ -610,13 +565,9 @@
     });
   });
 
-  function rupiah(n: number | bigint) {
-    return 'Rp ' + Number(n).toLocaleString('id-ID');
-  }
 
-  function formatRibuan(n: number | bigint) {
-    return (Number(n) / 1000).toLocaleString('id-ID', { maximumFractionDigits: 1 });
-  }
+
+
 
   // ==================== GERBANG LOGIN (SpacetimeAuth / Google) ====================
   const EMAIL_DIIZINKAN = 'tachtasandangsjb@gmail.com';
@@ -939,46 +890,7 @@
   </div>
 
   <!-- 2b. ANTREAN HP: cek yang belum terkirim (internet putus) -->
-  {#if antrean.daftar.length > 0}
-    <div class="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 space-y-1">
-      <div class="flex items-center justify-between gap-2">
-        <div class="text-xs font-bold text-amber-900">
-          ⏳ {antrean.daftar.length} cek tersimpan di HP — belum masuk perhitungan
-        </div>
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            data-ui="kirimAntrean"
-            onclick={() => kirimAntrean()}
-            class="px-2 py-1 text-[11px] font-bold rounded-md bg-amber-600 text-white hover:bg-amber-700"
-          >
-            Kirim sekarang
-          </button>
-        </div>
-      </div>
-      <div class="space-y-0.5">
-        {#each antrean.daftar as e (e.ref)}
-          <div class="flex items-center justify-between gap-2 text-[11px] text-amber-900">
-            <span class="font-mono">
-              {e.jam} · {e.salesmanNama} · {rupiah(Number(e.nominal))} · {e.tipe}
-            </span>
-            <button
-              type="button"
-              data-ui="buangAntrean"
-              onclick={() => antreBuang(e.ref)}
-              title="Buang cek ini (belum terkirim)"
-              class="px-1.5 py-0.5 rounded border border-amber-300 bg-white text-amber-800 font-bold"
-            >
-              ✕
-            </button>
-          </div>
-        {/each}
-      </div>
-      <div class="text-[10px] text-amber-700">
-        Dikirim otomatis begitu tersambung. Server menolak kiriman kembar, jadi tidak akan tercatat dua kali.
-      </div>
-    </div>
-  {/if}
+  <AntreanCek daftar={antrean.daftar} kirim={() => kirimAntrean()} buang={(ref) => antreBuang(ref)} />
 
   <!-- 3. NAVIGATION TABS & FILTER -->
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
