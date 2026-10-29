@@ -21,6 +21,7 @@
   let daftarCek = $state<any[]>([]);
   let daftarPenjualan = $state<any[]>([]);
   let daftarStaff = $state<any[]>([]);
+  let daftarFoto = $state<any[]>([]); // cek_foto: bukti gambar per cek (galeri)
   let daftarSalesman = $state<any[]>([]);
 
   // Input Cek & Bayar (lebar +20%: w-36 & w-32)
@@ -58,7 +59,10 @@
 
   // Filter & tab
   let cariTeks = $state('');
-  let filterStatus = $state<'semua' | 'belum_input' | 'kredit' | 'kurang_bayar'>('semua');
+  let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
+  // Galeri bukti gambar: dibuka saat kursor menyentuh baris cek.
+  let galeri = $state<{ cek: any; idx: number } | null>(null);
+  let timerGaleri: any = null;
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
@@ -70,6 +74,12 @@
     pesanGalat = null;
     pesanPelunasan = { sales, nominal, bayar, kembali };
     // Permanen: tidak ada setTimeout yang menghapus pesanPelunasan
+  }
+
+  // Pelunasan tetap tampil sampai kasir menutupnya sendiri atau pembayaran
+  // berikutnya — sebelumnya info ini bisa hilang begitu input cek dimulai.
+  function tutupPelunasan() {
+    pesanPelunasan = null;
   }
 
   function setPesanGalat(teks: string) {
@@ -136,6 +146,14 @@
       if (t === inputCepatEl || t === inputBayarEl) return;
       if (t.closest('button, input, select, textarea, a, [contenteditable]')) return;
       e.preventDefault();
+    });
+
+    // Galeri: Escape menutup, panah kiri/kanan berpindah gambar.
+    document.addEventListener('keydown', (e) => {
+      if (!galeri) return;
+      if (e.key === 'Escape') tutupGaleri();
+      else if (e.key === 'ArrowRight') geserGaleri(1);
+      else if (e.key === 'ArrowLeft') geserGaleri(-1);
     });
 
     // Coba kirim isi antrean tiap 15 detik selama tersambung.
@@ -221,6 +239,9 @@
     conn.db.salesman.onUpdate(() => refreshData());
     conn.db.salesman.onDelete(() => refreshData());
 
+    conn.db.cekFoto.onInsert(() => refreshData());
+    conn.db.cekFoto.onUpdate(() => refreshData());
+
     conn.subscriptionBuilder()
       .onApplied(() => {
         refreshData();
@@ -230,6 +251,7 @@
         'SELECT * FROM penjualan',
         'SELECT * FROM staff',
         'SELECT * FROM salesman',
+        'SELECT * FROM cek_foto',
       ]);
   }
 
@@ -248,6 +270,7 @@
       jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
       daftarStaff = Array.from(conn.db.staff.iter());
       daftarSalesman = Array.from(conn.db.salesman.iter());
+      daftarFoto = Array.from(conn.db.cekFoto.iter());
     } catch (e) {
       console.error('Error membaca tabel:', e);
     }
@@ -545,10 +568,94 @@
   // Ringkasan Rekonsiliasi
   const ringkasan = $derived(hitungRingkasan(daftarCek, daftarPenjualan));
 
+  // ---- Galeri bukti gambar -------------------------------------------------
+  // Kunci dari sisi ERP: 'cek-{outlet}-{tanggal}-{id}' (huruf kecil). Data lama
+  // ada yang beda huruf besar/kecil, jadi pencocokan dibuat tanpa peduli huruf.
+  function kunciFoto(c: any): string {
+    return `cek-${OUTLET.toLowerCase()}-${c.tanggal}-${c.id}`.toLowerCase();
+  }
+
+  const fotoPerCek = $derived.by(() => {
+    const m = new Map<string, { url: string; filename?: string; source?: string }[]>();
+    for (const f of daftarFoto) {
+      let arr: any[] = [];
+      try {
+        arr = JSON.parse(f.imagesJson || '[]');
+      } catch {
+        arr = [];
+      }
+      if (Array.isArray(arr) && arr.length > 0) m.set(String(f.cekid ?? '').toLowerCase(), arr);
+    }
+    return m;
+  });
+
+  function fotoCek(c: any) {
+    return fotoPerCek.get(kunciFoto(c)) ?? [];
+  }
+
+  function bukaGaleri(c: any, idx = 0) {
+    if (fotoCek(c).length === 0) return;
+    galeri = { cek: c, idx };
+  }
+
+  function tutupGaleri() {
+    clearTimeout(timerGaleri);
+    galeri = null;
+  }
+
+  // Kursor keluar dari baris: beri jeda singkat supaya kursor sempat pindah
+  // ke panel galeri tanpa panel keburu tertutup.
+  function tundaTutupGaleri() {
+    clearTimeout(timerGaleri);
+    timerGaleri = setTimeout(() => {
+      galeri = null;
+    }, 260);
+  }
+
+  function tahanGaleri() {
+    clearTimeout(timerGaleri);
+  }
+
+  function geserGaleri(arah: number) {
+    if (!galeri) return;
+    const jumlah = fotoCek(galeri.cek).length;
+    if (!jumlah) return;
+    galeri = { ...galeri, idx: (galeri.idx + arah + jumlah) % jumlah };
+  }
+
+  // ---- Beda tafsir pembayaran (cek kasir vs yang diinput ke Ollsera) -------
+  // Ollsera menandai kredit pada `payment_mode` = 'Kredit' (payment_type selalu
+  // 'Tunai'). Kalau kasir mencentang kredit tapi register tunai — atau
+  // sebaliknya — admin harus bisa melihatnya untuk membetulkan di Ollsera.
+  const penjualanPerOrder = $derived.by(() => {
+    const m = new Map<string, any>();
+    for (const p of daftarPenjualan) m.set(p.orderNo, p);
+    return m;
+  });
+
+  function regKredit(p: any): boolean {
+    return String(p?.paymentMode ?? '').toLowerCase().startsWith('kredit');
+  }
+
+  function bedaBayar(c: any): { cekKredit: boolean; regKredit: boolean } | null {
+    if (!c.orderNo) return null;
+    const p = penjualanPerOrder.get(c.orderNo);
+    if (!p) return null;
+    const reg = regKredit(p);
+    if (Boolean(c.kredit) === reg) return null;
+    return { cekKredit: Boolean(c.kredit), regKredit: reg };
+  }
+
+  const jmlBedaBayar = $derived(daftarCek.filter((c) => bedaBayar(c) !== null).length);
+
+  // Pesanan POS yang belum ada ceknya (= "belum diinput" oleh kasir).
+  const nilaiTanpaCek = $derived(ringkasan.penjualanTanpaCek.reduce((a, b) => a + Number(b.total), 0));
+
   // Filter daftar cek untuk tabel
   const cekTersaring = $derived.by(() => {
     const q = cariTeks.trim().toLowerCase();
     return daftarCek.filter((c) => {
+      if (filterStatus === 'beda_bayar' && bedaBayar(c) === null) return false;
       if (filterStatus === 'kredit' && !c.kredit) return false;
       if (filterStatus === 'belum_input' && (c.orderNo || c.status !== 'Belum Cocok')) return false;
       if (filterStatus === 'kurang_bayar' && (c.kredit || Number(c.dibayar) >= Number(c.nominal))) return false;
@@ -736,48 +843,45 @@
 <div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
   <!-- STICKY WRAPPER: card info + input kasir + tabs tetap di atas saat scroll -->
   <div class="sticky top-0 z-20 space-y-2 bg-slate-50 -mt-3 pt-3 pb-2 -mx-3 px-3 sm:-mt-4 sm:pt-4 sm:-mx-4 sm:px-4">
-  <!-- 1. KARTU INFORMASI HEADER (UKURAN LEBIH KECIL, RAMPING) -->
+  <!-- 1. KARTU INFORMASI: sudah diinput vs belum diinput vs beda tafsir -->
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Cek</div>
-        <div class="text-sm font-bold text-slate-900">{rupiah(ringkasan.totalCek)}</div>
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cek diinput</div>
+      <div class="text-sm font-bold text-slate-900">{ringkasan.jmlCek} cek · {rupiah(ringkasan.totalCek)}</div>
+      <div class="text-[11px] font-mono {ringkasan.jmlBelumCocok > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
+        {ringkasan.jmlCocok} ada pasangan · {ringkasan.jmlBelumCocok} belum cocok
       </div>
-      <span class="text-[11px] {ringkasan.jmlBelumCocok > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'} font-mono">
-        {ringkasan.jmlCek} ({ringkasan.jmlCocok}✓ {ringkasan.jmlBelumCocok > 0 ? '· ' + ringkasan.jmlBelumCocok + '✗' : ''})
-      </span>
     </div>
 
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Register POS</div>
-        <div class="text-sm font-bold text-slate-900">{rupiah(ringkasan.totalPenjualan)}</div>
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Belum diinput (POS)</div>
+      <div class="text-sm font-bold {ringkasan.penjualanTanpaCek.length > 0 ? 'text-amber-600' : 'text-slate-700'}">
+        {ringkasan.penjualanTanpaCek.length} order · {rupiah(nilaiTanpaCek)}
       </div>
-      <span class="text-[11px] text-slate-400 font-mono">{daftarPenjualan.length} order</span>
+      <div class="text-[11px] text-slate-400">pesanan tanpa cek</div>
     </div>
 
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selisih</div>
-        <div class="text-sm font-bold {ringkasan.selisih === 0 ? 'text-emerald-600' : 'text-rose-600'}">
-          {rupiah(ringkasan.selisih)}
+    <div class="bg-white px-3 py-2 rounded-lg border {jmlBedaBayar > 0 ? 'border-rose-300' : 'border-slate-200'} shadow-xs">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Beda cara bayar</div>
+      <div class="text-sm font-bold {jmlBedaBayar > 0 ? 'text-rose-600' : 'text-slate-700'}">
+        {jmlBedaBayar} cek
+      </div>
+      <div class="text-[11px] text-slate-400">cek kasir ≠ input Ollsera</div>
+    </div>
+
+    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selisih</div>
+          <div class="text-sm font-bold {ringkasan.selisih === 0 ? 'text-emerald-600' : 'text-rose-600'}">
+            {rupiah(ringkasan.selisih)}
+          </div>
         </div>
+        <span class="text-[9px] px-1.5 py-0.5 rounded font-bold {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+          {statusKoneksi === 'terhubung' ? '● LIVE' : statusKoneksi === 'menghubungkan' ? '○ menyambung' : gagalKoneksi ? '○ login ulang?' : '○ terputus'}
+        </span>
       </div>
-      <span class="text-[10px] font-bold {ringkasan.selisih === 0 ? 'text-emerald-500' : 'text-rose-500'}">
-        {ringkasan.selisih === 0 ? 'Pas' : 'Selisih'}
-      </span>
-    </div>
-
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs flex items-center justify-between">
-      <div>
-        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tanpa Cek</div>
-        <div class="text-sm font-bold {ringkasan.penjualanTanpaCek.length > 0 ? 'text-amber-600' : 'text-slate-700'}">
-          {ringkasan.penjualanTanpaCek.length} Order
-        </div>
-      </div>
-      <span class="text-[9px] px-1.5 py-0.5 rounded font-bold {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-        {statusKoneksi === 'terhubung' ? '● LIVE' : statusKoneksi === 'menghubungkan' ? '○ menyambung' : gagalKoneksi ? '○ login ulang?' : '○ terputus'}
-      </span>
+      <div class="text-[11px] text-slate-400">POS {rupiah(ringkasan.totalPenjualan)} − cek {rupiah(ringkasan.totalCek)}</div>
     </div>
   </div>
 
@@ -829,30 +933,42 @@
         />
       </div>
 
-      <!-- KETERANGAN DI SAMPING INPUT BAYAR (PERMANEN, TIDAK HILANG SETELAH 5 DETIK) -->
-      <div class="flex-1 flex items-center min-w-0">
+      <!-- KETERANGAN: tiga info TERPISAH supaya tidak saling menghilangkan.
+           Pelunasan tetap tampil walau kasir sudah mulai mengetik cek berikutnya. -->
+      <div class="flex-1 flex flex-col items-start gap-1 min-w-0">
         {#if pesanPelunasan}
-          <div class="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md truncate">
+          <div class="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
             <span class="font-bold">✓ LUNAS:</span>
             <span>{pesanPelunasan.sales} {rupiah(pesanPelunasan.nominal)}</span>
             <span class="text-slate-300">|</span>
             <span>Bayar {rupiah(pesanPelunasan.bayar)}</span>
             <span class="text-slate-300">|</span>
             <span class="font-bold text-emerald-700">Kembali {rupiah(pesanPelunasan.kembali)}</span>
+            <button
+              type="button"
+              data-ui="tutupPelunasan"
+              onclick={tutupPelunasan}
+              title="Tutup keterangan pelunasan"
+              class="ml-1 px-1.5 rounded border border-emerald-300 bg-white text-emerald-700 font-bold"
+            >
+              ✕
+            </button>
           </div>
-        {:else if pesanGalat}
-          <div class="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md truncate">
+        {/if}
+
+        {#if pesanGalat}
+          <div class="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md">
             {pesanGalat}
           </div>
-        {:else if targetBayar}
-          <div class="text-xs text-slate-600 font-medium truncate">
+        {/if}
+
+        {#if targetBayar}
+          <div class="text-xs text-slate-600 font-medium">
             Target: <b class="text-slate-800">{targetBayar.salesmanNama}</b>
             (Sisa: <b class="text-emerald-700">{rupiah(sisaTargetBayar)}</b>)
           </div>
-        {:else}
-          <div class="text-xs text-slate-400">
-            Semua cek lunas
-          </div>
+        {:else if !pesanPelunasan}
+          <div class="text-xs text-slate-400">Semua cek lunas</div>
         {/if}
       </div>
     </div>
@@ -924,7 +1040,7 @@
 
     {#if tabAktif === 'cek'}
       <div class="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
-        {#each ([['semua', 'Semua'], ['belum_input', 'Belum Input'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
+        {#each ([['semua', 'Semua'], ['belum_input', 'Belum Input'], ['beda_bayar', `Beda Bayar${jmlBedaBayar ? ' (' + jmlBedaBayar + ')' : ''}`], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
           <button
             type="button"
             onclick={() => { filterStatus = v; }}
@@ -970,6 +1086,8 @@
               {#each cekTersaring as c (c.id)}
                 {@const isTarget = isBayarFocused && targetBayar?.id === c.id}
                 <tr
+                  onmouseenter={() => { if (fotoCek(c).length) bukaGaleri(c); }}
+                  onmouseleave={() => { if (galeri?.cek?.id === c.id) tundaTutupGaleri(); }}
                   class="transition-colors {isTarget ? 'animate-flash-target font-semibold' : flashCekId === c.id ? 'bg-emerald-100' : c.kredit ? 'bg-amber-50' : Number(c.dibayar) < Number(c.nominal) ? 'bg-purple-50' : 'hover:bg-slate-50'}"
                 >
                   <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
@@ -1077,13 +1195,33 @@
                     />
                   </td>
 
-                  <!-- 5. PASANGAN POS -->
+                  <!-- 5. PASANGAN POS (termasuk tanda beda cara bayar + bukti gambar) -->
                   <td class="p-2.5 text-[11px]">
                     {#if c.orderNo}
                       <div class="font-mono text-slate-900 font-bold">{c.orderNo}</div>
                       <div class="text-slate-500">{c.customer}</div>
+                      {@const beda = bedaBayar(c)}
+                      {#if beda}
+                        <div
+                          class="mt-1 inline-block px-1.5 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-700 font-bold"
+                          title="Kasir dan Ollsera berbeda cara bayar — betulkan di Ollsera"
+                        >
+                          ⚠️ cek: {beda.cekKredit ? 'Kredit' : 'Tunai'} · Ollsera: {beda.regKredit ? 'Kredit' : 'Tunai'}
+                        </div>
+                      {/if}
                     {:else}
                       <span class="text-rose-500 font-semibold">Belum cocok POS</span>
+                    {/if}
+                    {#if fotoCek(c).length > 0}
+                      <button
+                        type="button"
+                        data-ui="buktiGambar"
+                        onclick={() => bukaGaleri(c)}
+                        class="mt-1 inline-block px-1.5 py-0.5 rounded border border-slate-300 bg-slate-50 text-slate-700 font-bold"
+                        title="Lihat bukti gambar cek"
+                      >
+                        📷 {fotoCek(c).length}
+                      </button>
                     {/if}
                   </td>
 
@@ -1102,6 +1240,55 @@
           </table>
         </div>
       {/if}
+    </div>
+  {/if}
+
+  <!-- GALERI BUKTI GAMBAR (muncul saat kursor menyentuh baris cek) -->
+  {#if galeri}
+    {@const gambar = fotoCek(galeri.cek)}
+    {@const aktif = gambar[galeri.idx] ?? gambar[0]}
+    <div
+      class="fixed right-3 bottom-3 z-[60] w-[320px] max-w-[92vw] bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden"
+      onmouseenter={tahanGaleri}
+      onmouseleave={tundaTutupGaleri}
+      role="dialog"
+      aria-label="Bukti gambar cek"
+    >
+      <div class="flex items-center justify-between px-3 py-2 bg-slate-900 text-white">
+        <div class="text-[11px] font-bold truncate">
+          Bukti · {galeri.cek.salesmanNama} · {rupiah(Number(galeri.cek.nominal))}
+        </div>
+        <button type="button" onclick={tutupGaleri} class="text-white font-bold px-1" title="Tutup (Esc)">✕</button>
+      </div>
+
+      {#if aktif}
+        <a href={aktif.url} target="_blank" rel="noopener" class="block bg-slate-100">
+          <img src={aktif.url} alt={aktif.filename ?? 'bukti cek'} class="w-full max-h-[52vh] object-contain" loading="lazy" />
+        </a>
+      {/if}
+
+      {#if gambar.length > 1}
+        <div class="flex items-center gap-1.5 px-2 py-2 overflow-x-auto bg-slate-50">
+          {#each gambar.slice(0, 12) as g, i (g.url)}
+            <button
+              type="button"
+              onclick={() => (galeri = { ...galeri!, idx: i })}
+              class="shrink-0 rounded overflow-hidden border-2 {i === galeri.idx ? 'border-blue-600' : 'border-transparent'}"
+              title="Gambar {i + 1} dari {gambar.length}"
+            >
+              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-12 w-12 object-cover" loading="lazy" />
+            </button>
+          {/each}
+        </div>
+      {/if}
+
+      <div class="flex items-center justify-between px-3 py-1.5 text-[10px] text-slate-500 border-t border-slate-200">
+        <span>
+          {galeri.idx + 1} / {gambar.length} gambar · {galeri.cek.jam.slice(0, 5)}
+          {#if gambar.length > 12}<span class="text-slate-400"> · 12 kecil pertama</span>{/if}
+        </span>
+        <a href={aktif?.url} target="_blank" rel="noopener" class="font-bold text-blue-700">Buka penuh ↗</a>
+      </div>
     </div>
   {/if}
 
