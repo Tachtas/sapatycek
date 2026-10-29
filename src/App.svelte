@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { DbConnection } from './module_bindings';
+  import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
 
   // Config SpacetimeDB
@@ -134,6 +135,10 @@
       if (t.closest('button, input, select, textarea, a, [contenteditable]')) return;
       e.preventDefault();
     });
+
+    // Coba kirim isi antrean tiap 15 detik selama tersambung.
+    const timerAntrean = setInterval(() => { void kirimAntrean(); }, 15000);
+    return () => clearInterval(timerAntrean);
   });
 
   // --- Sambung ulang otomatis: koneksi pernah putus (jaringan kedip, HP
@@ -172,6 +177,7 @@
           cobaKe = 0;
           gagalKoneksi = false;
           pasangSubscription();
+          void kirimAntrean();
         })
         .onDisconnect(() => {
           statusKoneksi = 'terputus';
@@ -341,10 +347,30 @@
     else if (tipeDigit === '3') tipe = 'Grosir';
 
     const jam = new Date().toTimeString().slice(0, 8);
+
+    // Internet putus: cek tetap dicatat, disimpan di HP dan dikirim ulang
+    // otomatis saat tersambung (server idempoten, jadi tidak dobel).
+    if (statusKoneksi !== 'terhubung' || !conn?.reducers?.tambahDeklarasiCek) {
+      antreTambah({
+        ref: (crypto.randomUUID?.() ?? String(Date.now() + Math.random())),
+        outlet: OUTLET,
+        tanggal,
+        jam,
+        salesman,
+        salesmanNama,
+        nominal: String(nominal),
+        tipe,
+        at: Date.now(),
+      });
+      setPesanGalat(`⏳ Tersimpan di HP (${antrean.daftar.length} belum terkirim) — dikirim otomatis begitu tersambung.`);
+      pendingCekNominal = null;
+      return;
+    }
+
     menyimpanCek = true;
 
     try {
-      await conn?.reducers.tambahDeklarasiCek({
+      await conn.reducers.tambahDeklarasiCek({
         outlet: OUTLET,
         tanggal,
         jam,
@@ -398,6 +424,7 @@
   }
 
   async function kirimBayar() {
+    if (butuhKoneksi("menghitung pembayaran")) return;
     const teks = bayarTeks.trim();
     if (!teks || menyimpanBayar) return;
 
@@ -469,6 +496,7 @@
   }
 
   async function simpanEdit(c: any) {
+    if (butuhKoneksi("mengubah cek")) return;
     if (!selEdit || selEdit.id !== c.id) return;
     const s = selEdit;
     selEdit = null;
@@ -508,6 +536,7 @@
   }
 
   async function toggleKredit(c: any, ceklis: boolean) {
+    if (butuhKoneksi("mengubah tanda kredit")) return;
     try {
       await conn?.reducers.updateDeklarasiCek({
         id: c.id,
@@ -526,6 +555,7 @@
   }
 
   async function hapusCek(id: bigint) {
+    if (butuhKoneksi("menghapus cek")) return;
     if (!confirm('Hapus baris cek ini?')) return;
     try {
       await conn?.reducers.hapusDeklarasiCek({ id });
@@ -615,6 +645,50 @@
       })();
     }
     else sesi = { status: 'oke', email };
+  }
+
+  // Operasi yang mengubah/menghapus/membayar cek yang SUDAH ada di server
+  // butuh koneksi — tidak diantrekan supaya uang tidak terhitung dua kali.
+  function butuhKoneksi(aksi: string): boolean {
+    if (statusKoneksi === 'terhubung' && conn?.reducers) return false;
+    setPesanGalat(`Butuh koneksi untuk ${aksi}. Cek baru tetap bisa diinput (disimpan di HP).`);
+    return true;
+  }
+
+  // Kirim isi antrean HP ke server (berurutan, berhenti saat gagal).
+  let sedangKirimAntrean = false;
+  async function kirimAntrean() {
+    if (sedangKirimAntrean) return;
+    if (statusKoneksi !== 'terhubung' || !conn?.reducers?.tambahDeklarasiCek) return;
+    if (antrean.daftar.length === 0) return;
+    sedangKirimAntrean = true;
+    let terkirim = 0;
+    try {
+      for (const e of [...antrean.daftar]) {
+        try {
+          await conn.reducers.tambahDeklarasiCek({
+            outlet: e.outlet,
+            tanggal: e.tanggal,
+            jam: e.jam,
+            salesman: e.salesman,
+            salesmanNama: e.salesmanNama,
+            nominal: BigInt(e.nominal),
+            tipe: e.tipe,
+            kredit: false,
+            dibayar: 0n,
+          });
+          antreBuang(e.ref);
+          terkirim++;
+        } catch {
+          break; // sisanya dicoba lagi pada putaran berikutnya
+        }
+      }
+    } finally {
+      sedangKirimAntrean = false;
+    }
+    if (terkirim > 0) {
+      setPesanGalat(`✓ ${terkirim} cek dari HP terkirim.${antrean.daftar.length ? ` Sisa ${antrean.daftar.length} menunggu.` : ''}`);
+    }
   }
 
   // Cek hanya bermakna hari itu; baris hari lama dibuang. Dua langkah:
@@ -863,6 +937,48 @@
       {/each}
     </div>
   </div>
+
+  <!-- 2b. ANTREAN HP: cek yang belum terkirim (internet putus) -->
+  {#if antrean.daftar.length > 0}
+    <div class="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 space-y-1">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs font-bold text-amber-900">
+          ⏳ {antrean.daftar.length} cek tersimpan di HP — belum masuk perhitungan
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            data-ui="kirimAntrean"
+            onclick={() => kirimAntrean()}
+            class="px-2 py-1 text-[11px] font-bold rounded-md bg-amber-600 text-white hover:bg-amber-700"
+          >
+            Kirim sekarang
+          </button>
+        </div>
+      </div>
+      <div class="space-y-0.5">
+        {#each antrean.daftar as e (e.ref)}
+          <div class="flex items-center justify-between gap-2 text-[11px] text-amber-900">
+            <span class="font-mono">
+              {e.jam} · {e.salesmanNama} · {rupiah(Number(e.nominal))} · {e.tipe}
+            </span>
+            <button
+              type="button"
+              data-ui="buangAntrean"
+              onclick={() => antreBuang(e.ref)}
+              title="Buang cek ini (belum terkirim)"
+              class="px-1.5 py-0.5 rounded border border-amber-300 bg-white text-amber-800 font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        {/each}
+      </div>
+      <div class="text-[10px] text-amber-700">
+        Dikirim otomatis begitu tersambung. Server menolak kiriman kembar, jadi tidak akan tercatat dua kali.
+      </div>
+    </div>
+  {/if}
 
   <!-- 3. NAVIGATION TABS & FILTER -->
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
