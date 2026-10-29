@@ -30,6 +30,7 @@
   let isBayarFocused = $state(false);
 
   let menyimpanCek = $state(false);
+  let jmlCekLama = $state(0);
   let menyimpanBayar = $state(false);
   let pendingCekNominal = $state<number | null>(null);
 
@@ -234,6 +235,9 @@
       daftarPenjualan = Array.from(conn.db.penjualan.iter())
         .filter((p: any) => p.outlet === OUTLET && p.orderDate === tanggal);
 
+      // Cek dari hari sebelumnya (dibersihkan otomatis oleh job sweep_cek
+      // pukul 08:00 WIT; tombol di bawah untuk menjalankannya sendiri).
+      jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
       daftarStaff = Array.from(conn.db.staff.iter());
       daftarSalesman = Array.from(conn.db.salesman.iter());
     } catch (e) {
@@ -613,6 +617,34 @@
     else sesi = { status: 'oke', email };
   }
 
+  // Cek hanya bermakna hari itu; baris hari lama dibuang. Dua langkah:
+  // uji (tidak menghapus) dulu, baru jalankan.
+  async function bersihkanCekLama() {
+    if (!conn?.reducers?.bersihkanCekLama) {
+      alert('Reducer belum tersedia — muat ulang halaman.');
+      return;
+    }
+    if (jmlCekLama === 0) {
+      alert('Tidak ada cek dari hari lama.');
+      return;
+    }
+    if (!confirm(`Ada ${jmlCekLama} baris cek dari hari sebelumnya.\n\nJalankan UJI dulu (tidak menghapus apa pun)?`)) return;
+    try {
+      await conn.reducers.bersihkanCekLama({ dryRun: true });
+      await new Promise((r) => setTimeout(r, 900));
+      const log = Array.from((conn.db.syncLog?.iter?.() ?? []) as Iterable<any>)
+        .filter((l: any) => String(l.jenis ?? '').startsWith('purge-cek'))
+        .sort((a: any, b: any) => Number(a.lastSyncedAt?.microsSinceUnixEpoch ?? 0) - Number(b.lastSyncedAt?.microsSinceUnixEpoch ?? 0))
+        .pop();
+      const siap = Number(log?.totalRows ?? 0);
+      if (!confirm(`Uji: ${siap} baris siap dibuang (jejak 'Belum Cocok' ditahan 7 hari).\n\nHapus sekarang?`)) return;
+      await conn.reducers.bersihkanCekLama({ dryRun: false });
+      alert(`Selesai: ${siap} baris cek hari lama dibuang.`);
+    } catch (e) {
+      alert('Gagal: ' + String((e as Error)?.message ?? e));
+    }
+  }
+
   function masukGoogle() {
     tandaiCobaLagi();
     loginGoogle();
@@ -841,6 +873,17 @@
       >
         📋 Daftar Cek ({daftarCek.length})
       </button>
+      {#if jmlCekLama > 0}
+        <button
+          type="button"
+          data-ui="bersihkanCekLama"
+          onclick={bersihkanCekLama}
+          title="Cek hanya dipakai pada hari itu — baris hari lama dibersihkan otomatis pukul 08:00 WIT"
+          class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+        >
+          🧹 Cek lama ({jmlCekLama})
+        </button>
+      {/if}
       {#if ringkasan.penjualanTanpaCek.length > 0}
         <button
           onclick={() => { tabAktif = 'tanpa_cek'; }}
