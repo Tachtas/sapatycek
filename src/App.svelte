@@ -578,6 +578,11 @@
   // Kunci dari sisi ERP: 'cek-{outlet}-{tanggal}-{id}' (huruf kecil). Data lama
   // ada yang beda huruf besar/kecil, jadi pencocokan dibuat tanpa peduli huruf.
   function kunciFoto(c: any): string {
+    // Baris hasil pemulihan arsip membawa cekid apa adanya (id baris SpacetimeDB
+    // lama); baris baru tetap dihitung dari id. Keduanya harus sama bentuknya
+    // dengan yang dipakai modul (lihat relasi.ts).
+    const eksplisit = String((c as any).cekid ?? '').trim();
+    if (eksplisit) return eksplisit.toLowerCase();
     return `cek-${OUTLET.toLowerCase()}-${c.tanggal}-${c.id}`.toLowerCase();
   }
 

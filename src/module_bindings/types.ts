@@ -25,20 +25,9 @@ export const AppConfig = __t.object("AppConfig", {
 });
 export type AppConfig = __Infer<typeof AppConfig>;
 
-export const CashEvent = __t.object("CashEvent", {
-  id: __t.u64(),
-  outlet: __t.string(),
-  kind: __t.string(),
-  amount: __t.i64(),
-  account: __t.string(),
-  note: __t.string(),
-  by: __t.identity(),
-  at: __t.timestamp(),
-});
-export type CashEvent = __Infer<typeof CashEvent>;
-
 export const Cek = __t.object("Cek", {
   id: __t.u64(),
+  cekid: __t.string(),
   outlet: __t.string(),
   tanggal: __t.string(),
   jam: __t.string(),
@@ -184,55 +173,6 @@ export const EverySpec = __t.object("EverySpec", {
 });
 export type EverySpec = __Infer<typeof EverySpec>;
 
-export const Opname = __t.object("Opname", {
-  transNo: __t.string(),
-  outlet: __t.string(),
-  opnameDate: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp(),
-});
-export type Opname = __Infer<typeof Opname>;
-
-export const OpnameItem = __t.object("OpnameItem", {
-  id: __t.u64(),
-  transNo: __t.string(),
-  itemCode: __t.string(),
-  itemName: __t.string(),
-  systemQty: __t.i32(),
-  realQty: __t.i32(),
-  diffQty: __t.i32(),
-});
-export type OpnameItem = __Infer<typeof OpnameItem>;
-
-export const Pembelian = __t.object("Pembelian", {
-  purchaseNo: __t.string(),
-  outlet: __t.string(),
-  purchaseDate: __t.string(),
-  supplierName: __t.string(),
-  subtotal: __t.i64(),
-  discount: __t.i64(),
-  total: __t.i64(),
-  status: __t.string(),
-  note: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp(),
-});
-export type Pembelian = __Infer<typeof Pembelian>;
-
-export const PembelianItem = __t.object("PembelianItem", {
-  id: __t.u64(),
-  purchaseNo: __t.string(),
-  itemCode: __t.string(),
-  itemName: __t.string(),
-  qty: __t.i32(),
-  price: __t.i64(),
-  discount: __t.i64(),
-  amount: __t.i64(),
-});
-export type PembelianItem = __Infer<typeof PembelianItem>;
-
 export const Penjualan = __t.object("Penjualan", {
   orderNo: __t.string(),
   outlet: __t.string(),
@@ -285,16 +225,6 @@ export const PenjualanItem = __t.object("PenjualanItem", {
   profit: __t.i64(),
 });
 export type PenjualanItem = __Infer<typeof PenjualanItem>;
-
-export const PrintJob = __t.object("PrintJob", {
-  id: __t.u64(),
-  outlet: __t.string(),
-  ticketId: __t.u64(),
-  status: __t.string(),
-  by: __t.identity(),
-  at: __t.timestamp(),
-});
-export type PrintJob = __Infer<typeof PrintJob>;
 
 export const Printer = __t.object("Printer", {
   outlet: __t.string(),
@@ -381,31 +311,6 @@ export const RetryTask = __t.object("RetryTask", {
 });
 export type RetryTask = __Infer<typeof RetryTask>;
 
-export const Retur = __t.object("Retur", {
-  returnNo: __t.string(),
-  outlet: __t.string(),
-  returnDate: __t.string(),
-  returnTime: __t.string(),
-  orderNo: __t.string(),
-  customerName: __t.string(),
-  reason: __t.string(),
-  total: __t.i64(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp(),
-});
-export type Retur = __Infer<typeof Retur>;
-
-export const ReturItem = __t.object("ReturItem", {
-  id: __t.u64(),
-  returnNo: __t.string(),
-  itemCode: __t.string(),
-  itemName: __t.string(),
-  qty: __t.i32(),
-  price: __t.i64(),
-  amount: __t.i64(),
-});
-export type ReturItem = __Infer<typeof ReturItem>;
-
 export const SalesInvoice = __t.object("SalesInvoice", {
   id: __t.u64(),
   outlet: __t.string(),
@@ -459,54 +364,6 @@ export const StockSnapshot = __t.object("StockSnapshot", {
   at: __t.timestamp(),
 });
 export type StockSnapshot = __Infer<typeof StockSnapshot>;
-
-export const StokKeluar = __t.object("StokKeluar", {
-  transNo: __t.string(),
-  outlet: __t.string(),
-  transDate: __t.string(),
-  refNo: __t.string(),
-  destination: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp(),
-});
-export type StokKeluar = __Infer<typeof StokKeluar>;
-
-export const StokKeluarItem = __t.object("StokKeluarItem", {
-  id: __t.u64(),
-  transNo: __t.string(),
-  itemCode: __t.string(),
-  itemName: __t.string(),
-  qty: __t.i32(),
-  uom: __t.string(),
-  price: __t.i64(),
-});
-export type StokKeluarItem = __Infer<typeof StokKeluarItem>;
-
-export const StokMasuk = __t.object("StokMasuk", {
-  transNo: __t.string(),
-  outlet: __t.string(),
-  transDate: __t.string(),
-  refNo: __t.string(),
-  supplierName: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp(),
-});
-export type StokMasuk = __Infer<typeof StokMasuk>;
-
-export const StokMasukItem = __t.object("StokMasukItem", {
-  id: __t.u64(),
-  transNo: __t.string(),
-  itemCode: __t.string(),
-  itemName: __t.string(),
-  qty: __t.i32(),
-  uom: __t.string(),
-  price: __t.i64(),
-});
-export type StokMasukItem = __Infer<typeof StokMasukItem>;
 
 export const SweepCekFire = __t.object("SweepCekFire", {
   scheduledId: __t.u64(),

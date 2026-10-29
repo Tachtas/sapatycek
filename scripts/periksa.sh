@@ -13,3 +13,12 @@ if [ -n "$fatal" ]; then
 fi
 printf '%s\n' "$hasil" | tail -1
 echo "OK — tidak ada nama/modul tak dikenal."
+
+# Bundel harus benar-benar bisa dibangun — error parse/penggabungan nama
+# (mis. impor ganda) tidak tertangkap pemeriksaan nama di atas.
+if ! npm run build >/tmp/periksa-build.log 2>&1; then
+  echo "GAGAL — build rusak:"
+  tail -12 /tmp/periksa-build.log
+  exit 1
+fi
+echo "OK — build lolos."

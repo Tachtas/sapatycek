@@ -12,6 +12,7 @@ import {
 
 export default __t.row({
   id: __t.u64().primaryKey(),
+  cekid: __t.string(),
   outlet: __t.string(),
   tanggal: __t.string(),
   jam: __t.string(),

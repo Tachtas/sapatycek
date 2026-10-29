@@ -35,17 +35,19 @@ import {
 
 // Import all reducer arg schemas
 import AddLineReducer from "./add_line_reducer";
+import BersihkanCekLamaReducer from "./bersihkan_cek_lama_reducer";
 import CatatBayarCekReducer from "./catat_bayar_cek_reducer";
 import CatatSyncLogReducer from "./catat_sync_log_reducer";
 import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
 import HapusKeranjangReducer from "./hapus_keranjang_reducer";
 import HapusPenjualanReducer from "./hapus_penjualan_reducer";
 import HapusSalesmanReducer from "./hapus_salesman_reducer";
+import ImporCekDariArsipReducer from "./impor_cek_dari_arsip_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
 import LanjutkanPenjualanReducer from "./lanjutkan_penjualan_reducer";
 import OpenTicketReducer from "./open_ticket_reducer";
+import RapikanFotoCekYatimReducer from "./rapikan_foto_cek_yatim_reducer";
 import ReconcileOutletReducer from "./reconcile_outlet_reducer";
-import SapuPrintJobReducer from "./sapu_print_job_reducer";
 import SchedulePullReducer from "./schedule_pull_reducer";
 import SealTicketReducer from "./seal_ticket_reducer";
 import SelesaiCetakReducer from "./selesai_cetak_reducer";
@@ -53,12 +55,7 @@ import SetCekFotoUrlReducer from "./set_cek_foto_url_reducer";
 import SetConfigReducer from "./set_config_reducer";
 import SetPrinterReducer from "./set_printer_reducer";
 import SimpanFotoGaleriReducer from "./simpan_foto_galeri_reducer";
-import SimpanOpnameReducer from "./simpan_opname_reducer";
-import SimpanPembelianReducer from "./simpan_pembelian_reducer";
 import SimpanPenjualanReducer from "./simpan_penjualan_reducer";
-import SimpanReturReducer from "./simpan_retur_reducer";
-import SimpanStokKeluarReducer from "./simpan_stok_keluar_reducer";
-import SimpanStokMasukReducer from "./simpan_stok_masuk_reducer";
 import SubmitRetryTaskReducer from "./submit_retry_task_reducer";
 import TahanPenjualanReducer from "./tahan_penjualan_reducer";
 import TambahDeklarasiCekReducer from "./tambah_deklarasi_cek_reducer";
@@ -75,42 +72,30 @@ import * as PullStockProcedure from "./pull_stock_procedure";
 // Import all table schema definitions
 import AllowlistRow from "./allowlist_table";
 import AppConfigRow from "./app_config_table";
-import CashEventRow from "./cash_event_table";
 import CekRow from "./cek_table";
 import CekFotoRow from "./cek_foto_table";
 import CetakJobRow from "./cetak_job_table";
 import CronJobsRow from "./cron_jobs_table";
 import CustomerRow from "./customer_table";
-import OpnameRow from "./opname_table";
-import OpnameItemRow from "./opname_item_table";
-import PembelianRow from "./pembelian_table";
-import PembelianItemRow from "./pembelian_item_table";
 import PenjualanRow from "./penjualan_table";
 import PenjualanItemRow from "./penjualan_item_table";
-import PrintJobRow from "./print_job_table";
 import PrinterRow from "./printer_table";
 import ProductRow from "./product_table";
 import PullTimerRow from "./pull_timer_table";
 import RekonRow from "./rekon_table";
-import ReturRow from "./retur_table";
-import ReturItemRow from "./retur_item_table";
 import SalesInvoiceRow from "./sales_invoice_table";
 import SalesInvoiceItemRow from "./sales_invoice_item_table";
 import SalesmanRow from "./salesman_table";
 import StaffRow from "./staff_table";
 import StockSnapshotRow from "./stock_snapshot_table";
-import StokKeluarRow from "./stok_keluar_table";
-import StokKeluarItemRow from "./stok_keluar_item_table";
-import StokMasukRow from "./stok_masuk_table";
-import StokMasukItemRow from "./stok_masuk_item_table";
 import SyncCursorRow from "./sync_cursor_table";
 import SyncLogRow from "./sync_log_table";
 import TicketRow from "./ticket_table";
 import TicketLineRow from "./ticket_line_table";
 
 // Import namespace table schema definitions
-import Relations_UniqueRow from "./relations/unique_table";
 import Relations_FkRow from "./relations/fk_table";
+import Relations_UniqueRow from "./relations/unique_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -138,17 +123,6 @@ const tablesSchema = __schema({
       { name: 'app_config_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, AppConfigRow),
-  cashEvent: __table({
-    name: 'cash_event',
-    indexes: [
-      { accessor: 'id', name: 'cash_event_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'cash_event_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, CashEventRow),
   cek: __table({
     name: 'cek',
     indexes: [
@@ -200,64 +174,6 @@ const tablesSchema = __schema({
       { name: 'customer_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CustomerRow),
-  opname: __table({
-    name: 'opname',
-    indexes: [
-      { accessor: 'by_outlet_date', name: 'opname_outlet_opname_date_idx_btree', algorithm: 'btree', columns: [
-        'outlet',
-        'opnameDate',
-      ] },
-      { accessor: 'transNo', name: 'opname_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'opname_trans_no_key', constraint: 'unique', columns: ['transNo'] },
-    ],
-  }, OpnameRow),
-  opnameItem: __table({
-    name: 'opname_item',
-    indexes: [
-      { accessor: 'id', name: 'opname_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_trans', name: 'opname_item_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'opname_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, OpnameItemRow),
-  pembelian: __table({
-    name: 'pembelian',
-    indexes: [
-      { accessor: 'by_outlet_date', name: 'pembelian_outlet_purchase_date_idx_btree', algorithm: 'btree', columns: [
-        'outlet',
-        'purchaseDate',
-      ] },
-      { accessor: 'purchaseNo', name: 'pembelian_purchase_no_idx_btree', algorithm: 'btree', columns: [
-        'purchaseNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'pembelian_purchase_no_key', constraint: 'unique', columns: ['purchaseNo'] },
-    ],
-  }, PembelianRow),
-  pembelianItem: __table({
-    name: 'pembelian_item',
-    indexes: [
-      { accessor: 'id', name: 'pembelian_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_purchase', name: 'pembelian_item_purchase_no_idx_btree', algorithm: 'btree', columns: [
-        'purchaseNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'pembelian_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, PembelianItemRow),
   penjualan: __table({
     name: 'penjualan',
     indexes: [
@@ -287,20 +203,6 @@ const tablesSchema = __schema({
       { name: 'penjualan_item_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PenjualanItemRow),
-  printJob: __table({
-    name: 'print_job',
-    indexes: [
-      { accessor: 'id', name: 'print_job_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_ticket', name: 'print_job_ticket_id_idx_btree', algorithm: 'btree', columns: [
-        'ticketId',
-      ] },
-    ],
-    constraints: [
-      { name: 'print_job_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, PrintJobRow),
   printer: __table({
     name: 'printer',
     indexes: [
@@ -345,35 +247,6 @@ const tablesSchema = __schema({
       { name: 'rekon_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RekonRow),
-  retur: __table({
-    name: 'retur',
-    indexes: [
-      { accessor: 'by_outlet_date', name: 'retur_outlet_return_date_idx_btree', algorithm: 'btree', columns: [
-        'outlet',
-        'returnDate',
-      ] },
-      { accessor: 'returnNo', name: 'retur_return_no_idx_btree', algorithm: 'btree', columns: [
-        'returnNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'retur_return_no_key', constraint: 'unique', columns: ['returnNo'] },
-    ],
-  }, ReturRow),
-  returItem: __table({
-    name: 'retur_item',
-    indexes: [
-      { accessor: 'id', name: 'retur_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_return', name: 'retur_item_return_no_idx_btree', algorithm: 'btree', columns: [
-        'returnNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'retur_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, ReturItemRow),
   salesInvoice: __table({
     name: 'sales_invoice',
     indexes: [
@@ -435,64 +308,6 @@ const tablesSchema = __schema({
       { name: 'stock_snapshot_sku_key', constraint: 'unique', columns: ['sku'] },
     ],
   }, StockSnapshotRow),
-  stokKeluar: __table({
-    name: 'stok_keluar',
-    indexes: [
-      { accessor: 'by_outlet_date', name: 'stok_keluar_outlet_trans_date_idx_btree', algorithm: 'btree', columns: [
-        'outlet',
-        'transDate',
-      ] },
-      { accessor: 'transNo', name: 'stok_keluar_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'stok_keluar_trans_no_key', constraint: 'unique', columns: ['transNo'] },
-    ],
-  }, StokKeluarRow),
-  stokKeluarItem: __table({
-    name: 'stok_keluar_item',
-    indexes: [
-      { accessor: 'id', name: 'stok_keluar_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_trans', name: 'stok_keluar_item_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'stok_keluar_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, StokKeluarItemRow),
-  stokMasuk: __table({
-    name: 'stok_masuk',
-    indexes: [
-      { accessor: 'by_outlet_date', name: 'stok_masuk_outlet_trans_date_idx_btree', algorithm: 'btree', columns: [
-        'outlet',
-        'transDate',
-      ] },
-      { accessor: 'transNo', name: 'stok_masuk_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'stok_masuk_trans_no_key', constraint: 'unique', columns: ['transNo'] },
-    ],
-  }, StokMasukRow),
-  stokMasukItem: __table({
-    name: 'stok_masuk_item',
-    indexes: [
-      { accessor: 'id', name: 'stok_masuk_item_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-      { accessor: 'by_trans', name: 'stok_masuk_item_trans_no_idx_btree', algorithm: 'btree', columns: [
-        'transNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'stok_masuk_item_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, StokMasukItemRow),
   syncCursor: __table({
     name: 'sync_cursor',
     indexes: [
@@ -547,17 +362,6 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, CronJobsRow),
-  "relations.unique": __table({
-    name: 'relations.unique',
-    indexes: [
-      { accessor: 'id', name: 'unique_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'unique_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, Relations_UniqueRow),
   "relations.fk": __table({
     name: 'relations.fk',
     indexes: [
@@ -569,22 +373,35 @@ const tablesSchema = __schema({
       { name: 'fk_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, Relations_FkRow),
+  "relations.unique": __table({
+    name: 'relations.unique',
+    indexes: [
+      { accessor: 'id', name: 'unique_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'unique_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, Relations_UniqueRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_line", AddLineReducer),
+  __reducerSchema("bersihkan_cek_lama", BersihkanCekLamaReducer),
   __reducerSchema("catat_bayar_cek", CatatBayarCekReducer),
   __reducerSchema("catat_sync_log", CatatSyncLogReducer),
   __reducerSchema("hapus_deklarasi_cek", HapusDeklarasiCekReducer),
   __reducerSchema("hapus_keranjang", HapusKeranjangReducer),
   __reducerSchema("hapus_penjualan", HapusPenjualanReducer),
   __reducerSchema("hapus_salesman", HapusSalesmanReducer),
+  __reducerSchema("impor_cek_dari_arsip", ImporCekDariArsipReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
   __reducerSchema("lanjutkan_penjualan", LanjutkanPenjualanReducer),
   __reducerSchema("open_ticket", OpenTicketReducer),
+  __reducerSchema("rapikan_foto_cek_yatim", RapikanFotoCekYatimReducer),
   __reducerSchema("reconcile_outlet", ReconcileOutletReducer),
-  __reducerSchema("sapu_print_job", SapuPrintJobReducer),
   __reducerSchema("schedule_pull", SchedulePullReducer),
   __reducerSchema("seal_ticket", SealTicketReducer),
   __reducerSchema("selesai_cetak", SelesaiCetakReducer),
@@ -592,12 +409,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_config", SetConfigReducer),
   __reducerSchema("set_printer", SetPrinterReducer),
   __reducerSchema("simpan_foto_galeri", SimpanFotoGaleriReducer),
-  __reducerSchema("simpan_opname", SimpanOpnameReducer),
-  __reducerSchema("simpan_pembelian", SimpanPembelianReducer),
   __reducerSchema("simpan_penjualan", SimpanPenjualanReducer),
-  __reducerSchema("simpan_retur", SimpanReturReducer),
-  __reducerSchema("simpan_stok_keluar", SimpanStokKeluarReducer),
-  __reducerSchema("simpan_stok_masuk", SimpanStokMasukReducer),
   __reducerSchema("submit_retry_task", SubmitRetryTaskReducer),
   __reducerSchema("tahan_penjualan", TahanPenjualanReducer),
   __reducerSchema("tambah_deklarasi_cek", TambahDeklarasiCekReducer),
@@ -633,41 +445,29 @@ const __qb = __makeQueryBuilder(tablesSchema.schemaType);
 export const tables = {
   allowlist: __qb.allowlist,
   appConfig: __qb.appConfig,
-  cashEvent: __qb.cashEvent,
   cek: __qb.cek,
   cekFoto: __qb.cekFoto,
   cetakJob: __qb.cetakJob,
   customer: __qb.customer,
-  opname: __qb.opname,
-  opnameItem: __qb.opnameItem,
-  pembelian: __qb.pembelian,
-  pembelianItem: __qb.pembelianItem,
   penjualan: __qb.penjualan,
   penjualanItem: __qb.penjualanItem,
-  printJob: __qb.printJob,
   printer: __qb.printer,
   product: __qb.product,
   pullTimer: __qb.pullTimer,
   rekon: __qb.rekon,
-  retur: __qb.retur,
-  returItem: __qb.returItem,
   salesInvoice: __qb.salesInvoice,
   salesInvoiceItem: __qb.salesInvoiceItem,
   salesman: __qb.salesman,
   staff: __qb.staff,
   stockSnapshot: __qb.stockSnapshot,
-  stokKeluar: __qb.stokKeluar,
-  stokKeluarItem: __qb.stokKeluarItem,
-  stokMasuk: __qb.stokMasuk,
-  stokMasukItem: __qb.stokMasukItem,
   syncCursor: __qb.syncCursor,
   syncLog: __qb.syncLog,
   ticket: __qb.ticket,
   ticketLine: __qb.ticketLine,
   cronJobs: __qb.cronJobs,
   relations: {
-    unique: __qb["relations.unique"],
     fk: __qb["relations.fk"],
+    unique: __qb["relations.unique"],
   },
 } as const;
 
