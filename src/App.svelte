@@ -62,6 +62,7 @@
   let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
   // Galeri bukti gambar: dibuka saat kursor menyentuh baris cek.
   let galeri = $state<{ cek: any; idx: number } | null>(null);
+  let sorot = $state<number | null>(null); // thumbnail yang sedang di-hover (preview besar)
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
@@ -150,7 +151,10 @@
     // Galeri: Escape menutup, panah kiri/kanan berpindah gambar.
     document.addEventListener('keydown', (e) => {
       if (!galeri) return;
-      if (e.key === 'Escape') tutupGaleri();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        tutupGaleri();
+      }
       else if (e.key === 'ArrowRight') geserGaleri(1);
       else if (e.key === 'ArrowLeft') geserGaleri(-1);
     });
@@ -604,12 +608,18 @@
     galeri = { cek: c, idx };
   }
 
+  // Fokus kembali ke input cek supaya kasir bisa langsung mengetik lagi.
+  // Urutan penting: pindahkan fokus SEBELUM akordion dibuang dari DOM — kalau
+  // node yang sedang difokus dihapus, browser memindahkan fokus ke <body>.
   function tutupGaleri() {
+    inputCepatEl?.focus();
     galeri = null;
+    sorot = null;
+    // Penjaga: sebagian browser memindahkan fokus ke <body> setelah node
+    // dihapus, jadi fokus dikembalikan sekali lagi setelah render selesai.
+    setTimeout(() => inputCepatEl?.focus(), 30);
   }
 
-  // Kursor keluar dari baris: beri jeda singkat supaya kursor sempat pindah
-  // ke panel galeri tanpa panel keburu tertutup.
   function geserGaleri(arah: number) {
     if (!galeri) return;
     const jumlah = fotoCek(galeri.cek).length;
@@ -1231,7 +1241,6 @@
                 <!-- AKORDION BUKTI GAMBAR: klik tombol foto -> baris membuka galeri -->
                 {#if galeri && galeri.cek.id === c.id}
                   {@const gambar = fotoCek(c)}
-                  {@const aktif = gambar[galeri.idx] ?? gambar[0]}
                   <tr class="bg-slate-50">
                     <td colspan="9" class="p-0 border-b-2 border-slate-300">
                       <div class="px-3 py-2 flex flex-col gap-2">
@@ -1250,35 +1259,53 @@
                           </button>
                         </div>
 
-                        <div class="flex gap-3 items-start">
-                          {#if aktif}
-                            <a href={aktif.url} target="_blank" rel="noopener" class="shrink-0">
+                        <!-- PREVIEW BESAR: muncul hanya saat thumbnail di-hover -->
+                        {#if sorot !== null && gambar[sorot]}
+                          <div class="flex items-start gap-3">
+                            <a href={gambar[sorot].url} target="_blank" rel="noopener" class="shrink-0">
                               <img
-                                src={aktif.url}
-                                alt={aktif.filename ?? 'bukti cek'}
-                                class="h-40 w-40 object-cover rounded border border-slate-300 bg-white"
+                                src={gambar[sorot].url}
+                                alt={gambar[sorot].filename ?? 'bukti cek'}
+                                class="h-44 w-44 object-cover rounded border-2 border-blue-500 bg-white"
                                 loading="lazy"
                               />
                             </a>
-                          {/if}
-                          <div class="flex-1 flex flex-wrap gap-1.5 content-start max-h-40 overflow-y-auto">
-                            {#each gambar.slice(0, 24) as g, i (g.url)}
-                              <button
-                                type="button"
-                                onclick={() => (galeri = { ...galeri!, idx: i })}
-                                class="rounded border-2 {i === galeri.idx ? 'border-blue-600' : 'border-slate-200'} bg-white"
-                                title="Gambar {i + 1} dari {gambar.length}"
-                              >
-                                <img src={g.url} alt={g.filename ?? 'bukti'} class="h-14 w-14 object-cover rounded" loading="lazy" />
-                              </button>
-                            {/each}
+                            <div class="text-[11px] text-slate-600 font-semibold">
+                              Gambar {sorot + 1} dari {gambar.length}
+                              <div class="text-[10px] text-slate-400 font-normal">
+                                klik untuk buka penuh · Esc menutup galeri
+                              </div>
+                            </div>
                           </div>
+                        {/if}
+
+                        <!-- SEMUA thumbnail (klik = buka penuh, hover = preview besar) -->
+                        <div class="flex flex-wrap gap-1.5 content-start max-h-56 overflow-y-auto">
+                          {#each gambar as g, i (g.url)}
+                            <button
+                              type="button"
+                              data-ui="thumbBukti"
+                              onclick={() => window.open(g.url, '_blank', 'noopener')}
+                              onmouseenter={() => (sorot = i)}
+                              onmouseleave={() => (sorot = null)}
+                              onfocus={() => (sorot = i)}
+                              onblur={() => (sorot = null)}
+                              class="rounded border-2 {sorot === i ? 'border-blue-600' : 'border-slate-200'} bg-white"
+                              title="Gambar {i + 1} dari {gambar.length} — klik untuk buka penuh"
+                            >
+                              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-14 w-14 object-cover rounded" loading="lazy" />
+                            </button>
+                          {/each}
                         </div>
 
                         <div class="text-[10px] text-slate-500">
-                          {galeri.idx + 1} / {gambar.length} gambar
-                          {#if gambar.length > 24}<span class="text-slate-400"> · 24 kecil pertama ditampilkan</span>{/if}
-                          {#if aktif} · <a href={aktif.url} target="_blank" rel="noopener" class="font-bold text-blue-700">buka penuh ↗</a>{/if}
+                          {gambar.length} gambar tersedia
+                          {#if sorot !== null && gambar[sorot]}
+                            · sedang dilihat: gambar {sorot + 1} ·
+                            <a href={gambar[sorot].url} target="_blank" rel="noopener" class="font-bold text-blue-700">buka penuh ↗</a>
+                          {:else}
+                            · arahkan kursor ke gambar kecil untuk pratinjau besar
+                          {/if}
                         </div>
                       </div>
                     </td>
