@@ -35,29 +35,24 @@ import {
 
 // Import all reducer arg schemas
 import AddLineReducer from "./add_line_reducer";
-import AddSalesInvoiceItemReducer from "./add_sales_invoice_item_reducer";
 import CatatBayarCekReducer from "./catat_bayar_cek_reducer";
 import CatatSyncLogReducer from "./catat_sync_log_reducer";
 import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
+import HapusKeranjangReducer from "./hapus_keranjang_reducer";
 import HapusPenjualanReducer from "./hapus_penjualan_reducer";
 import HapusSalesmanReducer from "./hapus_salesman_reducer";
-import JadikanAdminPertamaReducer from "./jadikan_admin_pertama_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
-import LepasAkunReducer from "./lepas_akun_reducer";
-import MigrasiTicketKeSalesInvoiceReducer from "./migrasi_ticket_ke_sales_invoice_reducer";
-import OpenSalesInvoiceReducer from "./open_sales_invoice_reducer";
+import LanjutkanPenjualanReducer from "./lanjutkan_penjualan_reducer";
 import OpenTicketReducer from "./open_ticket_reducer";
 import ReconcileOutletReducer from "./reconcile_outlet_reducer";
-import RecordCashReducer from "./record_cash_reducer";
-import RekonsiliasiCekHariReducer from "./rekonsiliasi_cek_hari_reducer";
 import SapuPrintJobReducer from "./sapu_print_job_reducer";
 import SchedulePullReducer from "./schedule_pull_reducer";
-import SealSalesInvoiceReducer from "./seal_sales_invoice_reducer";
 import SealTicketReducer from "./seal_ticket_reducer";
 import SelesaiCetakReducer from "./selesai_cetak_reducer";
+import SetCekFotoUrlReducer from "./set_cek_foto_url_reducer";
 import SetConfigReducer from "./set_config_reducer";
-import SetCursorReducer from "./set_cursor_reducer";
 import SetPrinterReducer from "./set_printer_reducer";
+import SimpanFotoGaleriReducer from "./simpan_foto_galeri_reducer";
 import SimpanOpnameReducer from "./simpan_opname_reducer";
 import SimpanPembelianReducer from "./simpan_pembelian_reducer";
 import SimpanPenjualanReducer from "./simpan_penjualan_reducer";
@@ -65,15 +60,12 @@ import SimpanReturReducer from "./simpan_retur_reducer";
 import SimpanStokKeluarReducer from "./simpan_stok_keluar_reducer";
 import SimpanStokMasukReducer from "./simpan_stok_masuk_reducer";
 import SubmitRetryTaskReducer from "./submit_retry_task_reducer";
+import TahanPenjualanReducer from "./tahan_penjualan_reducer";
 import TambahDeklarasiCekReducer from "./tambah_deklarasi_cek_reducer";
 import UpdateDeklarasiCekReducer from "./update_deklarasi_cek_reducer";
-import UpsertAllowReducer from "./upsert_allow_reducer";
 import UpsertCustomerReducer from "./upsert_customer_reducer";
-import UpsertProductReducer from "./upsert_product_reducer";
 import UpsertSalesmanReducer from "./upsert_salesman_reducer";
-import UpsertStaffReducer from "./upsert_staff_reducer";
 import VoidLineReducer from "./void_line_reducer";
-import VoidSalesInvoiceItemReducer from "./void_sales_invoice_item_reducer";
 
 // Import all procedure arg schemas
 import * as PullCustomersProcedure from "./pull_customers_procedure";
@@ -85,6 +77,8 @@ import AllowlistRow from "./allowlist_table";
 import AppConfigRow from "./app_config_table";
 import CashEventRow from "./cash_event_table";
 import CekRow from "./cek_table";
+import CekFotoRow from "./cek_foto_table";
+import CetakJobRow from "./cetak_job_table";
 import CronJobsRow from "./cron_jobs_table";
 import CustomerRow from "./customer_table";
 import OpnameRow from "./opname_table";
@@ -170,6 +164,31 @@ const tablesSchema = __schema({
       { name: 'cek_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CekRow),
+  cekFoto: __table({
+    name: 'cek_foto',
+    indexes: [
+      { accessor: 'cekid', name: 'cek_foto_cekid_idx_btree', algorithm: 'btree', columns: [
+        'cekid',
+      ] },
+    ],
+    constraints: [
+      { name: 'cek_foto_cekid_key', constraint: 'unique', columns: ['cekid'] },
+    ],
+  }, CekFotoRow),
+  cetakJob: __table({
+    name: 'cetak_job',
+    indexes: [
+      { accessor: 'id', name: 'cetak_job_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'by_order', name: 'cetak_job_order_no_idx_btree', algorithm: 'btree', columns: [
+        'orderNo',
+      ] },
+    ],
+    constraints: [
+      { name: 'cetak_job_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CetakJobRow),
   customer: __table({
     name: 'customer',
     indexes: [
@@ -555,29 +574,24 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_line", AddLineReducer),
-  __reducerSchema("add_sales_invoice_item", AddSalesInvoiceItemReducer),
   __reducerSchema("catat_bayar_cek", CatatBayarCekReducer),
   __reducerSchema("catat_sync_log", CatatSyncLogReducer),
   __reducerSchema("hapus_deklarasi_cek", HapusDeklarasiCekReducer),
+  __reducerSchema("hapus_keranjang", HapusKeranjangReducer),
   __reducerSchema("hapus_penjualan", HapusPenjualanReducer),
   __reducerSchema("hapus_salesman", HapusSalesmanReducer),
-  __reducerSchema("jadikan_admin_pertama", JadikanAdminPertamaReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
-  __reducerSchema("lepas_akun", LepasAkunReducer),
-  __reducerSchema("migrasi_ticket_ke_sales_invoice", MigrasiTicketKeSalesInvoiceReducer),
-  __reducerSchema("open_sales_invoice", OpenSalesInvoiceReducer),
+  __reducerSchema("lanjutkan_penjualan", LanjutkanPenjualanReducer),
   __reducerSchema("open_ticket", OpenTicketReducer),
   __reducerSchema("reconcile_outlet", ReconcileOutletReducer),
-  __reducerSchema("record_cash", RecordCashReducer),
-  __reducerSchema("rekonsiliasi_cek_hari", RekonsiliasiCekHariReducer),
   __reducerSchema("sapu_print_job", SapuPrintJobReducer),
   __reducerSchema("schedule_pull", SchedulePullReducer),
-  __reducerSchema("seal_sales_invoice", SealSalesInvoiceReducer),
   __reducerSchema("seal_ticket", SealTicketReducer),
   __reducerSchema("selesai_cetak", SelesaiCetakReducer),
+  __reducerSchema("set_cek_foto_url", SetCekFotoUrlReducer),
   __reducerSchema("set_config", SetConfigReducer),
-  __reducerSchema("set_cursor", SetCursorReducer),
   __reducerSchema("set_printer", SetPrinterReducer),
+  __reducerSchema("simpan_foto_galeri", SimpanFotoGaleriReducer),
   __reducerSchema("simpan_opname", SimpanOpnameReducer),
   __reducerSchema("simpan_pembelian", SimpanPembelianReducer),
   __reducerSchema("simpan_penjualan", SimpanPenjualanReducer),
@@ -585,15 +599,12 @@ const reducersSchema = __reducers(
   __reducerSchema("simpan_stok_keluar", SimpanStokKeluarReducer),
   __reducerSchema("simpan_stok_masuk", SimpanStokMasukReducer),
   __reducerSchema("submit_retry_task", SubmitRetryTaskReducer),
+  __reducerSchema("tahan_penjualan", TahanPenjualanReducer),
   __reducerSchema("tambah_deklarasi_cek", TambahDeklarasiCekReducer),
   __reducerSchema("update_deklarasi_cek", UpdateDeklarasiCekReducer),
-  __reducerSchema("upsert_allow", UpsertAllowReducer),
   __reducerSchema("upsert_customer", UpsertCustomerReducer),
-  __reducerSchema("upsert_product", UpsertProductReducer),
   __reducerSchema("upsert_salesman", UpsertSalesmanReducer),
-  __reducerSchema("upsert_staff", UpsertStaffReducer),
   __reducerSchema("void_line", VoidLineReducer),
-  __reducerSchema("void_sales_invoice_item", VoidSalesInvoiceItemReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -624,6 +635,8 @@ export const tables = {
   appConfig: __qb.appConfig,
   cashEvent: __qb.cashEvent,
   cek: __qb.cek,
+  cekFoto: __qb.cekFoto,
+  cetakJob: __qb.cetakJob,
   customer: __qb.customer,
   opname: __qb.opname,
   opnameItem: __qb.opnameItem,

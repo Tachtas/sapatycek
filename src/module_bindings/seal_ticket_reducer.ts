@@ -11,9 +11,10 @@ import {
 } from "spacetimedb";
 
 export default {
-  ticketId: __t.u64(),
+  orderNo: __t.string(),
   payMode: __t.string(),
   customerId: __t.option(__t.string()),
   diskonGlobal: __t.i64(),
+  uangMuka: __t.i64(),
   v: __t.i32(),
 };

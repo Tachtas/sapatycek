@@ -56,6 +56,26 @@ export const Cek = __t.object("Cek", {
 });
 export type Cek = __Infer<typeof Cek>;
 
+export const CekFoto = __t.object("CekFoto", {
+  cekid: __t.string(),
+  title: __t.string(),
+  salesman: __t.string(),
+  nominal: __t.i64(),
+  imagesJson: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type CekFoto = __Infer<typeof CekFoto>;
+
+export const CetakJob = __t.object("CetakJob", {
+  id: __t.u64(),
+  outlet: __t.string(),
+  orderNo: __t.string(),
+  status: __t.string(),
+  by: __t.identity(),
+  at: __t.timestamp(),
+});
+export type CetakJob = __Infer<typeof CetakJob>;
+
 export const CronFireRecovery = __t.object("CronFireRecovery", {
   sequence: __t.u64(),
   scheduledFor: __t.timestamp(),

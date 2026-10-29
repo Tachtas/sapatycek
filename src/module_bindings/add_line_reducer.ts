@@ -11,7 +11,7 @@ import {
 } from "spacetimedb";
 
 export default {
-  ticketId: __t.u64(),
+  orderNo: __t.string(),
   sku: __t.string(),
   qty: __t.i32(),
   discount: __t.i64(),

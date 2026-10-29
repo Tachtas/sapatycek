@@ -11,6 +11,7 @@ import {
 } from "spacetimedb";
 
 export default {
+  orderNo: __t.string(),
   outlet: __t.string(),
   v: __t.i32(),
 };

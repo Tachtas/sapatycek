@@ -11,9 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  email: __t.string(),
-  label: __t.string(),
-  role: __t.string(),
-  outlet: __t.string(),
-  active: __t.bool(),
+  orderNo: __t.string(),
+  v: __t.i32(),
 };

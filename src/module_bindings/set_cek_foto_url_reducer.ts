@@ -11,6 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  outlet: __t.string(),
-  v: __t.i32(),
+  id: __t.u64(),
+  shortUrl: __t.string(),
 };

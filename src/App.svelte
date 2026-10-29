@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { DbConnection } from './module_bindings';
-  import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi } from './lib/login';
+  import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
 
   // Config SpacetimeDB
   const HOST = 'https://maincloud.spacetimedb.com';
@@ -116,6 +116,11 @@
 
   // Sambungkan ke SpacetimeDB
   onMount(() => {
+    try {
+      const d = JSON.parse(sessionStorage.getItem('cek-draf-input') ?? 'null');
+      if (d && typeof d.cepat === 'string') { cepatTeks = d.cepat; bayarTeks = d.bayar ?? ''; }
+    } catch {}
+
     if (sesi.status === 'oke') hubungkanSpacetimeDB();
     inputCepatEl?.focus();
     // Kursor kasir tidak boleh keluar dari pasangan input Cek/Bayar:
@@ -129,6 +134,22 @@
       e.preventDefault();
     });
   });
+
+  // --- Sambung ulang otomatis: koneksi pernah putus (jaringan kedip, HP
+  // tidur) dan sebelumnya aplikasi tidak pernah mencoba menyambung lagi.
+  let timerSambung: any = null;
+  let cobaKe = 0;
+  let ketikTerakhir = 0;
+
+  function jadwalkanSambungUlang() {
+    if (timerSambung) return;
+    const jeda = Math.min(30000, 2000 * 2 ** cobaKe++);
+    timerSambung = setTimeout(async () => {
+      timerSambung = null;
+      if (tokenSegeraHabis(5)) await perpanjangToken().catch(() => false);
+      hubungkanSpacetimeDB();
+    }, jeda);
+  }
 
   function hubungkanSpacetimeDB() {
     statusKoneksi = 'menghubungkan';
@@ -147,17 +168,24 @@
         .onConnect((connection) => {
           conn = connection;
           statusKoneksi = 'terhubung';
+          cobaKe = 0;
+          gagalKoneksi = false;
           pasangSubscription();
         })
         .onDisconnect(() => {
           statusKoneksi = 'terputus';
+          jadwalkanSambungUlang();
         })
         .onConnectError((_ctx, err) => {
           statusKoneksi = 'terputus';
           gagalKoneksi = true;
           console.error('Koneksi SpacetimeDB error:', err);
-          // Token bisa ditolak server walau belum terlihat kedaluwarsa.
-          if (bolehCobaLagi(20000)) masukUlangOtomatis();
+          // Token ditolak walau belum terlihat kedaluwarsa → coba perpanjang,
+          // kalau tidak bisa baru minta masuk ulang.
+          void (async () => {
+            if (await perpanjangToken()) jadwalkanSambungUlang();
+            else if (bolehCobaLagi(20000)) masukUlangOtomatis();
+          })();
         });
 
       builder.build();
@@ -221,7 +249,16 @@
     return /^\d+[a-z]\d$/.test(bersih);
   }
 
+  // Draf input disimpan sementara: saat sesi habis, halaman dimuat ulang dan
+  // angka yang sedang diketik operator tidak boleh hilang.
+  const KUNCI_DRAF = 'cek-draf-input';
+  function simpanDraf() {
+    try { sessionStorage.setItem(KUNCI_DRAF, JSON.stringify({ cepat: cepatTeks, bayar: bayarTeks })); } catch {}
+  }
+
   function onInputCepat() {
+    ketikTerakhir = Date.now();
+    simpanDraf();
     const teks = cepatTeks.trim();
     if (cekLengkap(teks)) {
       kirimCepat();
@@ -234,6 +271,43 @@
       e.preventDefault();
       inputBayarEl?.focus();
     }
+  }
+
+  // Pratinjau tafsir input: operator harus melihat nominal/tipe/salesman
+  // SEBELUM menekan Enter — salah tafsir = uang salah di buku.
+  const pratinjauCek = $derived.by(() => {
+    const bersih = cepatTeks.trim().toLowerCase().replace(/[.\s]/g, '');
+    if (!bersih) return { jenis: 'kosong' as const, teks: '' };
+    // Baru angka nominal saja: jangan dianggap salah, minta kode salesman.
+    if (/^\d+$/.test(bersih)) {
+      return { jenis: 'sebagian' as const, teks: `${rupiah(Number(bersih) * 1000)} · tinggal kode salesman (ketuk di bawah)` };
+    }
+    const m = bersih.match(/^(\d+)([a-z0-9])(\d)?$/);
+    if (!m) return { jenis: 'salah' as const, teks: 'Format: nominal + kode + tipe (mis. 25m1)' };
+    const nominal = Number(m[1]) * 1000;
+    const nama = cariSalesmanAktif(m[2]);
+    if (!m[3]) {
+      return {
+        jenis: 'sebagian' as const,
+        teks: `${rupiah(nominal)} · ${nama || 'kode ' + m[2].toUpperCase() + ' tak dikenal'} · tinggal digit tipe (1 Ecer / 2 Obral / 3 Grosir)`,
+      };
+    }
+    const tipe = m[3] === '2' ? 'Obral' : m[3] === '3' ? 'Grosir' : 'Ecer';
+    if (!nama) {
+      return { jenis: 'salah' as const, teks: `${rupiah(nominal)} · kode ${m[2].toUpperCase()} tidak ada di daftar salesman aktif` };
+    }
+    return { jenis: 'siap' as const, teks: `${rupiah(nominal)} · ${tipe} · ${nama}` };
+  });
+
+  // Kode salesman diambil dari papan ketuk supaya operator tidak perlu hafal
+  // B=Nabil, C=Sindi, V=Silvia… (sumber salah input terbanyak).
+  function pilihSalesman(kode: string) {
+    if (!kode) return;
+    const digit = (cepatTeks.match(/^(\d+)/) ?? [])[1] ?? '';
+    cepatTeks = digit ? digit + kode + '1' : kode;
+    ketikTerakhir = Date.now();
+    simpanDraf();
+    inputCepatEl?.focus();
   }
 
   async function kirimCepat() {
@@ -298,6 +372,8 @@
   // LOGIKA PEMBAYARAN TANPA TOMBOL: Otomatis bayar saat >= sisa nominal
   // =========================================================================
   function onInputBayar() {
+    ketikTerakhir = Date.now();
+    simpanDraf();
     const teks = bayarTeks.trim();
     if (!teks || !/^\d+$/.test(teks)) return;
 
@@ -522,10 +598,17 @@
     // Token kedaluwarsa = sama seperti belum login. Ini akar 'indikator kuning
     // dan input mati' yang dialami operator tiap token berumur ~1 jam.
     else if (tokenKedaluwarsa()) {
+      // Perpanjang DIAM-DIAM dulu (tanpa pindah halaman). Hanya kalau gagal
+      // operator diarahkan masuk ulang.
       sesi = { status: 'kedaluwarsa', email };
-      // Coba masuk ulang sendiri (sesi Google biasanya masih hidup → operator
-      // tidak perlu mengetik apa pun). Kalau tidak berhasil, kartu tombol tetap tampil.
-      masukUlangOtomatis();
+      void (async () => {
+        if (await perpanjangToken()) {
+          sesi = { status: 'oke', email };
+          hubungkanSpacetimeDB();
+        } else {
+          masukUlangOtomatis();
+        }
+      })();
     }
     else sesi = { status: 'oke', email };
   }
@@ -716,6 +799,37 @@
         {/if}
       </div>
     </div>
+
+    <!-- PRATINJAU TAFSIR INPUT (pencegahan salah tafsir sebelum Enter) -->
+    {#if pratinjauCek.jenis !== 'kosong'}
+      <div
+        class="mt-1.5 text-[11px] font-semibold px-2 py-1 rounded-md border {pratinjauCek.jenis === 'siap'
+          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          : pratinjauCek.jenis === 'sebagian'
+            ? 'bg-slate-50 border-slate-200 text-slate-600'
+            : 'bg-rose-50 border-rose-200 text-rose-700'}"
+      >
+        {#if pratinjauCek.jenis === 'siap'}✓ {/if}{pratinjauCek.teks}
+      </div>
+    {/if}
+
+    <!-- PAPAN KETUK SALESMAN: kode ↔ nama (hafalan B/C/V sering keliru) -->
+    <div class="mt-1.5 flex items-center gap-1.5 flex-wrap">
+      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Salesman</span>
+      {#each daftarSalesmanAktif as s (s.kode + s.nama)}
+        <button
+          type="button"
+          data-ui="pilihSalesman"
+          onclick={() => pilihSalesman(s.kode)}
+          class="px-2 py-0.5 rounded-md text-[11px] font-bold border transition-colors {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}"
+          title="Isi kolom Cek dengan kode {s.kode.toUpperCase()} untuk {s.nama}"
+        >
+          {s.kode.toUpperCase()} · {s.nama}
+        </button>
+      {/each}
+    </div>
   </div>
 
   <!-- 3. NAVIGATION TABS & FILTER -->
@@ -739,7 +853,7 @@
 
     {#if tabAktif === 'cek'}
       <div class="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
-        {#each [['semua', 'Semua'], ['belum_input', 'Belum Input'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as [v, label] (v)}
+        {#each ([['semua', 'Semua'], ['belum_input', 'Belum Input'], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
           <button
             type="button"
             onclick={() => { filterStatus = v; }}
@@ -804,8 +918,8 @@
                           {#each daftarSalesmanAktif as s (s.nama)}
                             <button
                               type="button"
-                              onclick={() => { selEdit.nilai = s.nama; simpanEdit(c); }}
-                              class="w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-colors {selEdit.nilai === s.nama ? 'bg-blue-600 text-white' : 'text-slate-900 active:bg-slate-100'}"
+                              onclick={() => { if (selEdit) selEdit.nilai = s.nama; simpanEdit(c); }}
+                              class="w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-colors {selEdit?.nilai === s.nama ? 'bg-blue-600 text-white' : 'text-slate-900 active:bg-slate-100'}"
                             >
                               {s.nama}
                             </button>

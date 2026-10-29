@@ -11,6 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  key: __t.string(),
-  lastModified: __t.string(),
+  orderNo: __t.string(),
+  v: __t.i32(),
 };

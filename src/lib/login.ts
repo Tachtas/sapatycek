@@ -3,6 +3,7 @@
 
 const EMAIL_KEY = 'cek-login-email';
 const TOKEN_KEY = 'cek-spacetime-token';
+const REFRESH_KEY = 'cek-refresh-token';
 // Client ID SpacetimeAuth (tab Clients dashboard) — public, bukan rahasia.
 const SPACETIME_CLIENT_ID = 'client_034lxMnaHtdhfFEAhxJj5V';
 const AUTH_BASE = 'https://auth.spacetimedb.com';
@@ -26,9 +27,17 @@ export function spacetimeToken(): string | undefined {
   try { return localStorage.getItem(TOKEN_KEY) ?? undefined; } catch { return undefined; }
 }
 
+function simpanToken(idToken: string, refreshToken?: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, idToken);
+    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+  } catch {}
+}
+
 export function logout(): void {
   try {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(EMAIL_KEY);
     sessionStorage.removeItem('oidc-verifier');
     sessionStorage.removeItem('oidc-state');
@@ -51,12 +60,12 @@ export async function loginGoogle(): Promise<void> {
   try { sessionStorage.setItem('oidc-verifier', verifier); sessionStorage.setItem('oidc-state', state); } catch {}
   const url =
     `${AUTH_BASE}/oidc/auth?response_type=code&client_id=${encodeURIComponent(SPACETIME_CLIENT_ID)}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent('openid email profile')}` +
+    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent('openid email profile offline_access')}` +
     `&code_challenge=${challenge}&code_challenge_method=S256&state=${state}`;
   window.location.href = url;
 }
 
-async function tukarCode(code: string, verifier: string): Promise<string> {
+async function tukarCode(code: string, verifier: string): Promise<{ idToken: string; refreshToken?: string }> {
   const r = await fetch(`${AUTH_BASE}/oidc/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -68,7 +77,7 @@ async function tukarCode(code: string, verifier: string): Promise<string> {
   if (!r.ok) throw new Error('tukar token gagal: ' + r.status);
   const j = await r.json();
   if (!j.id_token) throw new Error('tak ada id_token');
-  return j.id_token as string;
+  return { idToken: j.id_token as string, refreshToken: j.refresh_token as string | undefined };
 }
 
 // Dipanggil saat halaman dibuka dengan ?code=..&state=.. (callback login).
@@ -83,9 +92,10 @@ export function handleOidcCallback(): boolean {
     document.body.insertAdjacentText('beforeend', 'login gagal: state tidak cocok');
     return true;
   }
-  tukarCode(code, verifier).then((idToken) => {
+  tukarCode(code, verifier).then(({ idToken, refreshToken }) => {
     const email = decodeEmail(idToken);
-    try { localStorage.setItem(EMAIL_KEY, email); localStorage.setItem(TOKEN_KEY, idToken); } catch {}
+    try { localStorage.setItem(EMAIL_KEY, email); } catch {}
+    simpanToken(idToken, refreshToken);
     window.history.replaceState({}, '', '/');
     window.location.reload();
   }).catch((e) => document.body.insertAdjacentText('beforeend', `login gagal: ${e}`));
@@ -123,4 +133,46 @@ export function bolehCobaLagi(ms = 60000): boolean {
 
 export function tandaiCobaLagi(): void {
   try { localStorage.setItem(KUNCI_COBA, String(Date.now())); } catch {}
+}
+
+// Perpanjang token DIAM-DIAM (tanpa pindah halaman) memakai refresh_token.
+// Grant ini terbukti didukung SpacetimeAuth; kalau server tidak mengirim
+// refresh_token saat login (atau perpanjangan gagal), pemanggil yang
+// memutuskan: tampilkan kartu / masuk ulang lewat halaman login.
+export async function perpanjangToken(): Promise<boolean> {
+  let rt = '';
+  try { rt = localStorage.getItem(REFRESH_KEY) ?? ''; } catch {}
+  if (!rt) return false;
+  try {
+    const r = await fetch(`${AUTH_BASE}/oidc/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: rt,
+        client_id: SPACETIME_CLIENT_ID,
+      }),
+    });
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (!j.id_token) return false;
+    simpanToken(j.id_token as string, (j.refresh_token as string) ?? rt);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Token masih sah tapi tinggal sedikit (dipakai untuk memperpanjang saat senggang).
+export function tokenSegeraHabis(menit = 10): boolean {
+  const t = spacetimeToken();
+  if (!t) return true;
+  try {
+    const isi = JSON.parse(atob((t.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/')));
+    const exp = Number(isi.exp ?? 0);
+    if (!exp) return false;
+    return Date.now() / 1000 > exp - menit * 60;
+  } catch {
+    return true;
+  }
 }

@@ -11,6 +11,9 @@ import {
 } from "spacetimedb";
 
 export default {
-  itemId: __t.u64(),
-  v: __t.i32(),
+  cekid: __t.string(),
+  title: __t.string(),
+  salesman: __t.string(),
+  nominal: __t.i64(),
+  imagesJson: __t.string(),
 };

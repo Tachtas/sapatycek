@@ -11,9 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  invoiceId: __t.u64(),
-  sku: __t.string(),
-  qty: __t.i32(),
-  discount: __t.i64(),
+  orderNo: __t.string(),
   v: __t.i32(),
 };
