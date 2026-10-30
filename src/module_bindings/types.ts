@@ -317,6 +317,9 @@ export const Salesman = __t.object("Salesman", {
   kode: __t.string(),
   outlet: __t.string(),
   aktif: __t.bool(),
+  email: __t.string(),
+  aksesPos: __t.bool(),
+  posAdmin: __t.bool(),
 });
 export type Salesman = __Infer<typeof Salesman>;
 

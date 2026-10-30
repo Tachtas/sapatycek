@@ -16,4 +16,7 @@ export default {
   kode: __t.string(),
   outlet: __t.string(),
   aktif: __t.bool(),
+  email: __t.string(),
+  aksesPos: __t.bool(),
+  posAdmin: __t.bool(),
 };
