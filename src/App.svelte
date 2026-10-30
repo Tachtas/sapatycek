@@ -216,6 +216,16 @@
           statusKoneksi = 'terhubung';
           cobaKe = 0;
           gagalKoneksi = false;
+          // Ikatan akun: identity tiap klien OIDC BERBEDA walau emailnya sama
+          // (sapatycek vs sapaty-pos = dua identity). Tanpa klaim di sini, tabel
+          // staff tidak punya baris untuk identity ini, sehingga reducer yang
+          // mensyaratkan staff menolak 'kas: cashier only' padahal akunnya admin.
+          const em = emailLogin();
+          if (em) {
+            connection.reducers.klaimAkun({ email: em }).catch((e: unknown) => {
+              console.error('klaimAkun gagal:', e);
+            });
+          }
           pasangSubscription();
           void kirimAntrean();
         })
