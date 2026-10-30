@@ -35,6 +35,22 @@
 
   let menyimpanCek = $state(false);
   let jmlCekLama = $state(0);
+  // window.confirm()/alert() DIABAIKAN WebView Android (langsung balik false /
+  // tidak tampil), sehingga tombol hapus & sapu cek lama terasa mati.
+  // Semua konfirmasi/pemberitahuan memakai dialog di dalam aplikasi.
+  let dialog = $state<{ teks: string; hanyaOk?: boolean; jawab?: (ya: boolean) => void } | null>(null);
+
+  function konfirmasi(teks: string): Promise<boolean> {
+    return new Promise((selesai) => {
+      dialog = { teks, jawab: (ya) => { dialog = null; selesai(ya); } };
+    });
+  }
+
+  function info(teks: string): Promise<void> {
+    return new Promise((selesai) => {
+      dialog = { teks, hanyaOk: true, jawab: () => { dialog = null; selesai(); } };
+    });
+  }
   let menyimpanBayar = $state(false);
   let pendingCekNominal = $state<number | null>(null);
 
@@ -561,7 +577,7 @@
 
   async function hapusCek(id: bigint) {
     if (butuhKoneksi("menghapus cek")) return;
-    if (!confirm('Hapus baris cek ini?')) return;
+    if (!(await konfirmasi('Hapus baris cek ini?'))) return;
     try {
       await conn?.reducers.hapusDeklarasiCek({ id });
     } catch (err: any) {
@@ -775,14 +791,14 @@
   // uji (tidak menghapus) dulu, baru jalankan.
   async function bersihkanCekLama() {
     if (!conn?.reducers?.bersihkanCekLama) {
-      alert('Reducer belum tersedia — muat ulang halaman.');
+      await info('Reducer belum tersedia — muat ulang halaman.');
       return;
     }
     if (jmlCekLama === 0) {
-      alert('Tidak ada cek dari hari lama.');
+      await info('Tidak ada cek dari hari lama.');
       return;
     }
-    if (!confirm(`Ada ${jmlCekLama} baris cek dari hari sebelumnya.\n\nJalankan UJI dulu (tidak menghapus apa pun)?`)) return;
+    if (!(await konfirmasi(`Ada ${jmlCekLama} baris cek dari hari sebelumnya.\n\nJalankan UJI dulu (tidak menghapus apa pun)?`))) return;
     try {
       await conn.reducers.bersihkanCekLama({ dryRun: true });
       await new Promise((r) => setTimeout(r, 900));
@@ -791,11 +807,11 @@
         .sort((a: any, b: any) => Number(a.lastSyncedAt?.microsSinceUnixEpoch ?? 0) - Number(b.lastSyncedAt?.microsSinceUnixEpoch ?? 0))
         .pop();
       const siap = Number(log?.totalRows ?? 0);
-      if (!confirm(`Uji: ${siap} baris siap dibuang (jejak 'Belum Cocok' ditahan 7 hari).\n\nHapus sekarang?`)) return;
+      if (!(await konfirmasi(`Uji: ${siap} baris siap dibuang (jejak 'Belum Cocok' ditahan 7 hari).\n\nHapus sekarang?`))) return;
       await conn.reducers.bersihkanCekLama({ dryRun: false });
-      alert(`Selesai: ${siap} baris cek hari lama dibuang.`);
+      await info(`Selesai: ${siap} baris cek hari lama dibuang.`);
     } catch (e) {
-      alert('Gagal: ' + String((e as Error)?.message ?? e));
+      await info('Gagal: ' + String((e as Error)?.message ?? e));
     }
   }
 
@@ -1408,6 +1424,30 @@
   {/if}
 </div>
 
+{/if}
+
+{#if dialog}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" data-ui="dialog">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-4">
+      <p class="text-sm text-slate-800 whitespace-pre-line">{dialog.teks}</p>
+      <div class="mt-4 flex justify-end gap-2">
+        {#if !dialog.hanyaOk}
+          <button
+            type="button"
+            data-ui="dialogBatal"
+            onclick={() => dialog?.jawab?.(false)}
+            class="px-3 py-1.5 text-xs font-bold rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+          >Batal</button>
+        {/if}
+        <button
+          type="button"
+          data-ui="dialogYa"
+          onclick={() => dialog?.jawab?.(true)}
+          class="px-3 py-1.5 text-xs font-bold rounded-md bg-slate-900 text-white hover:bg-slate-800"
+        >{dialog.hanyaOk ? 'OK' : 'Ya'}</button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
