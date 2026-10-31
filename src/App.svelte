@@ -538,10 +538,10 @@
     let salesmanNama = c.salesmanNama;
 
     if (s.kolom === 'nominal') {
-      const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
+      const ribuan = Number(String(s.nilai ?? '').replace(/[^0-9]/g, ''));   // tahan angka maupun teks
       nominal = BigInt(ribuan * 1000);
     } else if (s.kolom === 'dibayar') {
-      const ribuan = Number(s.nilai.replace(/[^0-9]/g, ''));
+      const ribuan = Number(String(s.nilai ?? '').replace(/[^0-9]/g, ''));   // tahan angka maupun teks
       dibayar = BigInt(ribuan * 1000);
     } else if (s.kolom === 'salesman') {
       const hasil = cariSalesmanAktif(s.nilai);
@@ -1176,7 +1176,8 @@
                       <input
                         bind:this={inputEditEl}
                         bind:value={selEdit.nilai}
-                        type="number"
+                        type="text"
+                        inputmode="numeric"
                         onkeydown={(e) => {
                           if (e.key === 'Enter') simpanEdit(c);
                           else if (e.key === 'Escape') batalEdit();
@@ -1200,7 +1201,8 @@
                       <input
                         bind:this={inputEditEl}
                         bind:value={selEdit.nilai}
-                        type="number"
+                        type="text"
+                        inputmode="numeric"
                         onkeydown={(e) => {
                           if (e.key === 'Enter') simpanEdit(c);
                           else if (e.key === 'Escape') batalEdit();
