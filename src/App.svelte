@@ -3,6 +3,7 @@
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
   import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan } from './lib/cek';
+  import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
 
@@ -681,17 +682,13 @@
     return m;
   });
 
-  function regKredit(p: any): boolean {
-    return String(p?.paymentMode ?? '').toLowerCase().startsWith('kredit');
-  }
-
+  // Logikanya di lib/kredit.ts (fungsi murni + uji di scripts/uji_kredit.*).
+  // Ejaan kredit BEDA antar sumber - Ollsera 'Kredit', POS Sapaty 'CREDIT' - dan
+  // detektor lama hanya mengenal yang pertama, sehingga penjualan kredit dari POS
+  // terbaca sebagai TUNAI. Akibatnya baris yang sebenarnya sepadan dilaporkan
+  // sebagai "beda tafsir" (kejadian nyata 1 Nov 2026: 204.000 Silvia, kredit).
   function bedaBayar(c: any): { cekKredit: boolean; regKredit: boolean } | null {
-    if (!c.orderNo) return null;
-    const p = penjualanPerOrder.get(c.orderNo);
-    if (!p) return null;
-    const reg = regKredit(p);
-    if (Boolean(c.kredit) === reg) return null;
-    return { cekKredit: Boolean(c.kredit), regKredit: reg };
+    return bedaBayarMurni(c, (o: string) => penjualanPerOrder.get(o));
   }
 
   const jmlBedaBayar = $derived(daftarCek.filter((c) => bedaBayar(c) !== null).length);

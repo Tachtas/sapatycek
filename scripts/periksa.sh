@@ -28,6 +28,13 @@ echo "OK — build lolos."
 # dikunci di dalamnya bisa lolos ke HP operator tanpa satu pun peringatan.
 # Yang dijaga di sana: cek kasir dicocokkan HANYA dengan penjualan yang sudah
 # selesai ('Proses' = keranjang hidup, 'Pending' = ditahan tidak boleh dihitung).
+if ! bash scripts/uji_kredit.sh >/tmp/periksa-kredit.log 2>&1; then
+  echo "GAGAL - uji tafsir kredit tidak lulus:"
+  tail -14 /tmp/periksa-kredit.log
+  exit 1
+fi
+tail -1 /tmp/periksa-kredit.log | sed 's/^/OK - uji kredit: /'
+
 if ! bash scripts/uji_cocok.sh >/tmp/periksa-cocok.log 2>&1; then
   echo "GAGAL — uji pencocokan cek tidak lulus:"
   tail -14 /tmp/periksa-cocok.log
