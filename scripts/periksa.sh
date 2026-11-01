@@ -22,3 +22,15 @@ if ! npm run build >/tmp/periksa-build.log 2>&1; then
   exit 1
 fi
 echo "OK — build lolos."
+
+# UJI LOGIKA MURNI (1 Nov 2026): uji_cocok.sh sudah lama ada tapi TIDAK pernah
+# dijalankan gerbang ini, jadi ia tidak menjaga apa pun - kelas bug yang sudah
+# dikunci di dalamnya bisa lolos ke HP operator tanpa satu pun peringatan.
+# Yang dijaga di sana: cek kasir dicocokkan HANYA dengan penjualan yang sudah
+# selesai ('Proses' = keranjang hidup, 'Pending' = ditahan tidak boleh dihitung).
+if ! bash scripts/uji_cocok.sh >/tmp/periksa-cocok.log 2>&1; then
+  echo "GAGAL — uji pencocokan cek tidak lulus:"
+  tail -14 /tmp/periksa-cocok.log
+  exit 1
+fi
+tail -1 /tmp/periksa-cocok.log | sed 's/^/OK — uji pencocokan: /'

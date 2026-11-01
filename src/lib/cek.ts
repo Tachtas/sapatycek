@@ -75,13 +75,36 @@ export type Ringkasan = {
   penjualanTanpaCek: any[];
 };
 
+/**
+ * Status penjualan yang BELUM SELESAI — tidak boleh ikut dicocokkan dengan cek.
+ *
+ * Sumber kebenarannya modul POS (`sapaty-pos/src/routes/Kasir.svelte`,
+ * `PenjualanHariIni.svelte`): 'Proses' = keranjang yang masih hidup, 'Pending' =
+ * transaksi DITAHAN yang bisa dilanjutkan kapan saja. Keduanya bukan penjualan:
+ * nilai maupun barisnya masih bisa berubah, dan menghitungnya membuat cek kasir
+ * tampak kurang atau lebih tanpa sebab yang bisa dijelaskan ke operator.
+ *
+ * Sengaja berupa DAFTAR PENGECUALIAN, bukan syarat `status === 'Closing'`:
+ * status lain berasal dari penjualan yang sudah tuntas — 'Closing' dari POS dan
+ * kode 'Z'/'A' dari impor riwayat Ollsera — dan semuanya tetap harus dihitung.
+ * Status kosong pun tetap dihitung: menyembunyikan baris dari layar lebih
+ * berbahaya daripada menampilkannya.
+ */
+export const STATUS_BELUM_SELESAI = ['Proses', 'Pending'];
+
+/** Buang penjualan yang belum selesai sebelum dicocokkan. */
+export function selesaiSaja(daftar: any[]): any[] {
+  return (daftar || []).filter((p) => !STATUS_BELUM_SELESAI.includes(String(p?.status ?? '')));
+}
+
 /** Ringkasan harian: cek manual vs register POS, plus pesanan yang belum ada cek. */
 export function hitungRingkasan(daftarCek: any[], daftarPenjualan: any[]): Ringkasan {
+  const penjualan = selesaiSaja(daftarPenjualan);
   const totalCek = daftarCek.reduce((a, b) => a + Number(b.nominal), 0);
   const totalDibayar = daftarCek.reduce((a, b) => a + Number(b.dibayar), 0);
   const jmlCocok = daftarCek.filter((c) => c.status === 'Cocok' || c.status === 'Cocok Tanpa Bukti Waktu').length;
   const jmlBelumCocok = daftarCek.filter((c) => c.status === 'Belum Cocok').length;
-  const totalPenjualan = daftarPenjualan.reduce((a, b) => a + Number(b.total), 0);
+  const totalPenjualan = penjualan.reduce((a, b) => a + Number(b.total), 0);
   const orderNoCek = new Set(daftarCek.map((c) => c.orderNo).filter(Boolean));
   return {
     totalCek,
@@ -91,6 +114,66 @@ export function hitungRingkasan(daftarCek: any[], daftarPenjualan: any[]): Ringk
     jmlCek: daftarCek.length,
     jmlCocok,
     jmlBelumCocok,
-    penjualanTanpaCek: daftarPenjualan.filter((p) => !orderNoCek.has(p.orderNo)),
+    penjualanTanpaCek: penjualan.filter((p) => !orderNoCek.has(p.orderNo)),
   };
+}
+
+// ---------------------------------------------------------------- per penjual
+// Cek kasir ditulis PER PENJUAL (`25m1` = 25rb, kode penjual, tipe), tapi
+// ringkasan di atas hanya membandingkan TOTAL HARI. Akibatnya satu penjual bisa
+// kurang tanpa ketahuan selama penjual lain lebih - justru lubang yang aplikasi
+// ini ada untuk menutup. Fungsi ini mencocokkan keduanya per penjual.
+//
+// Kunci pencocokan = NAMA penjual, bukan kode huruf: cek menyimpan kodenya di
+// `salesman` dan namanya di `salesmanNama`, sedangkan penjualan sapatypos
+// menyimpan NAMA di `salesman`. Keduanya berasal dari daftar Sales Person yang
+// sama, jadi namanya sebanding.
+export type BarisPenjual = {
+  kunci: string;
+  nama: string;
+  cek: number;
+  dibayar: number;
+  penjualan: number;
+  order: number;
+  selisih: number;
+  /** '' = ada di kedua sisi · 'cek'/'penjualan' = hanya di satu sisi */
+  hanya: '' | 'cek' | 'penjualan';
+};
+
+const normNama = (s: any) => String(s ?? '').trim().toLowerCase();
+
+export function cocokPerPenjual(daftarCek: any[], daftarPenjualan: any[]): BarisPenjual[] {
+  const peta = new Map<string, BarisPenjual>();
+  const ambil = (nama: any, kode: any) => {
+    const namaTeks = String(nama ?? '').trim() || String(kode ?? '').trim();
+    // Baris tanpa penjual tetap dikelompokkan supaya jumlahnya tidak menghilang
+    // dari layar - kalau tidak, total harian dan total per penjual bisa berbeda
+    // tanpa ada yang menjelaskan sebabnya.
+    const kunci = normNama(namaTeks) || '(tanpa penjual)';
+    let b = peta.get(kunci);
+    if (!b) {
+      b = { kunci, nama: namaTeks || '(tanpa penjual)', cek: 0, dibayar: 0, penjualan: 0, order: 0, selisih: 0, hanya: '' };
+      peta.set(kunci, b);
+    }
+    return b;
+  };
+
+  for (const c of daftarCek) {
+    const b = ambil(c?.salesmanNama, c?.salesman);
+    b.cek += Number(c?.nominal) || 0;
+    b.dibayar += Number(c?.dibayar) || 0;
+  }
+  for (const p of selesaiSaja(daftarPenjualan)) {
+    const b = ambil(p?.salesman, '');
+    b.penjualan += Number(p?.total) || 0;
+    b.order += 1;
+  }
+
+  return [...peta.values()]
+    .map((b) => ({
+      ...b,
+      selisih: b.penjualan - b.cek,
+      hanya: b.cek === 0 ? ('penjualan' as const) : b.penjualan === 0 ? ('cek' as const) : ('' as const),
+    }))
+    .sort((a, b) => Math.abs(b.selisih) - Math.abs(a.selisih) || a.nama.localeCompare(b.nama));
 }
