@@ -1240,8 +1240,8 @@
     </div>
 
     {#if tabAktif === 'cek'}
-      <div class="flex items-center gap-2">
-        <div class="inline-flex items-center rounded-lg border border-line bg-card p-0.5">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex max-w-full items-center overflow-x-auto rounded-lg border border-line bg-card p-0.5">
           {#each ([['semua', 'Semua'], ['belum_input', 'Belum input'], ['beda_bayar', `Beda bayar${jmlBedaBayar ? ' · ' + jmlBedaBayar : ''}`], ['kurang_bayar', 'Kurang bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
             <button
               type="button"
@@ -1252,7 +1252,7 @@
             </button>
           {/each}
         </div>
-        <div class="relative">
+        <div class="relative shrink-0">
           <Search size={14} strokeWidth={1.5} class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
           <input
             bind:value={cariTeks}
@@ -1284,6 +1284,7 @@
                 <th class="px-3 py-2 font-medium">Tipe</th>
                 <th class="px-3 py-2 text-center font-medium">Kredit</th>
                 <th class="px-3 py-2 font-medium">Order POS</th>
+                <th class="px-3 py-2 text-center font-medium">Foto</th>
                 <th class="px-3 py-2 text-right font-medium">Aksi</th>
               </tr>
             </thead>
@@ -1397,7 +1398,7 @@
                     />
                   </td>
 
-                  <!-- 5. ORDER POS (termasuk tanda beda cara bayar + bukti gambar) -->
+                  <!-- 5. ORDER POS (termasuk tanda beda cara bayar) -->
                   <td class="px-3 py-2.5">
                     {#if c.orderNo}
                       <div class="font-mono text-[12px] text-ink">{c.orderNo}</div>
@@ -1415,18 +1416,25 @@
                     {:else}
                       <span class="text-[12px] font-medium text-bad">Belum cocok POS</span>
                     {/if}
+                  </td>
+
+                  <!-- 6. FOTO: kolom sendiri supaya tidak menumpuk di bawah nomor
+                       order dan lebar kolom tidak melompat antar baris -->
+                  <td class="px-3 py-2.5 text-center">
                     {#if fotoCek(c).length > 0}
                       <button
                         type="button"
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
-                        class="mt-1 inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-onaccent' : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
+                        class="inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-onaccent' : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
                         title="Buka galeri bukti gambar (layar penuh)"
                         aria-label="Bukti gambar: {fotoCek(c).length} foto"
                       >
                         <Camera size={13} strokeWidth={1.5} />
                         <span class="font-mono">{fotoCek(c).length}</span>
                       </button>
+                    {:else}
+                      <span class="text-[12px] text-muted">—</span>
                     {/if}
                   </td>
 
