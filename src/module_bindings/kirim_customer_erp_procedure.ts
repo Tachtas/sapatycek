@@ -10,14 +10,6 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  transNo: __t.string(),
-  outlet: __t.string(),
-  transDate: __t.string(),
-  refNo: __t.string(),
-  destination: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  itemsJson: __t.string(),
+export const params = {
 };
+export const returnType = __t.i32()

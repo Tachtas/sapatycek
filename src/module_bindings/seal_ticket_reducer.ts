@@ -17,4 +17,5 @@ export default {
   diskonGlobal: __t.i64(),
   uangMuka: __t.i64(),
   v: __t.i32(),
+  cetak: __t.bool(),
 };

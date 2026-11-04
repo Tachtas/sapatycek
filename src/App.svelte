@@ -48,7 +48,7 @@
   let daftarCek = $state<any[]>([]);
   let daftarPenjualan = $state<any[]>([]);
   let daftarStaff = $state<any[]>([]);
-  let daftarFoto = $state<any[]>([]); // cek_foto: bukti gambar per cek (galeri)
+  let daftarFoto = $state<any[]>([]); // cek_foto_aman (view): bukti gambar per cek (galeri)
   let daftarSalesman = $state<any[]>([]);
 
   // Input Cek & Bayar (lebar +20%: w-36 & w-32)
@@ -330,19 +330,23 @@
     conn.db.salesman.onUpdate(() => refreshData());
     conn.db.salesman.onDelete(() => refreshData());
 
-    conn.db.cekFoto.onInsert(() => refreshData());
-    conn.db.cekFoto.onUpdate(() => refreshData());
+    conn.db.cekFotoAman.onInsert(() => refreshData());
+    conn.db.cekFotoAman.onUpdate(() => refreshData());
 
     conn.subscriptionBuilder()
       .onApplied(() => {
         refreshData();
       })
+      // `cek_foto` dibaca lewat VIEW `cek_foto_aman`, bukan tabelnya. Tabel itu
+      // diprivatkan (5 Nov 2026) supaya tidak lagi terbaca siapa pun yang
+      // menyambung; view menyaring per pemanggil. Kalau kembali ke tabel privat,
+      // SELURUH batch langganan ini gagal, bukan cuma galeri fotonya.
       .subscribe([
         'SELECT * FROM cek',
         'SELECT * FROM penjualan',
         'SELECT * FROM staff',
         'SELECT * FROM salesman',
-        'SELECT * FROM cek_foto',
+        'SELECT * FROM cek_foto_aman',
       ]);
   }
 
@@ -361,7 +365,7 @@
       jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
       daftarStaff = Array.from(conn.db.staff.iter());
       daftarSalesman = Array.from(conn.db.salesman.iter());
-      daftarFoto = Array.from(conn.db.cekFoto.iter());
+      daftarFoto = Array.from(conn.db.cekFotoAman.iter());
     } catch (e) {
       console.error('Error membaca tabel:', e);
     }

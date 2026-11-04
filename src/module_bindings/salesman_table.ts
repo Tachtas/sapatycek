@@ -17,6 +17,6 @@ export default __t.row({
   outlet: __t.string(),
   aktif: __t.bool(),
   email: __t.string(),
-  aksesPos: __t.bool(),
-  posAdmin: __t.bool(),
+  aksesPos: __t.bool().name("akses_pos"),
+  posAdmin: __t.bool().name("pos_admin"),
 });

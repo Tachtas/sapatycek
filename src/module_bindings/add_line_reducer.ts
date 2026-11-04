@@ -16,4 +16,7 @@ export default {
   qty: __t.i32(),
   discount: __t.i64(),
   v: __t.i32(),
+  price: __t.i64(),
+  no: __t.i32(),
+  catatan: __t.string(),
 };

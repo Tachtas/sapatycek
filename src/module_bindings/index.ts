@@ -36,50 +36,92 @@ import {
 // Import all reducer arg schemas
 import AddLineReducer from "./add_line_reducer";
 import BersihkanCekLamaReducer from "./bersihkan_cek_lama_reducer";
+import BukaPendaftaranReducer from "./buka_pendaftaran_reducer";
 import CatatBayarCekReducer from "./catat_bayar_cek_reducer";
+import CatatDiagnosaReducer from "./catat_diagnosa_reducer";
+import CatatLogReducer from "./catat_log_reducer";
+import CatatPenjualanReducer from "./catat_penjualan_reducer";
 import CatatSyncLogReducer from "./catat_sync_log_reducer";
+import CetakUlangReducer from "./cetak_ulang_reducer";
+import DaftarkanPerangkatReducer from "./daftarkan_perangkat_reducer";
+import HapusCustomerLokalReducer from "./hapus_customer_lokal_reducer";
 import HapusDeklarasiCekReducer from "./hapus_deklarasi_cek_reducer";
 import HapusKeranjangReducer from "./hapus_keranjang_reducer";
 import HapusPenjualanReducer from "./hapus_penjualan_reducer";
 import HapusSalesmanReducer from "./hapus_salesman_reducer";
+import HitungUlangStokTerjualReducer from "./hitung_ulang_stok_terjual_reducer";
 import ImporAkunDariArsipReducer from "./impor_akun_dari_arsip_reducer";
 import ImporCekDariArsipReducer from "./impor_cek_dari_arsip_reducer";
+import ImporLogDariArsipReducer from "./impor_log_dari_arsip_reducer";
+import ImporPenjualanDariArsipReducer from "./impor_penjualan_dari_arsip_reducer";
 import KlaimAkunReducer from "./klaim_akun_reducer";
 import LanjutkanPenjualanReducer from "./lanjutkan_penjualan_reducer";
+import LepasPaksaReducer from "./lepas_paksa_reducer";
+import MatikanTimerReducer from "./matikan_timer_reducer";
 import OpenTicketReducer from "./open_ticket_reducer";
+import PerbaikiPenjualHexReducer from "./perbaiki_penjual_hex_reducer";
+import PerbaikiPindahReducer from "./perbaiki_pindah_reducer";
+import PindahBarangReducer from "./pindah_barang_reducer";
+import PulihkanBarisReducer from "./pulihkan_baris_reducer";
 import RapikanFotoCekYatimReducer from "./rapikan_foto_cek_yatim_reducer";
 import ReconcileOutletReducer from "./reconcile_outlet_reducer";
+import ResetStokTerjualReducer from "./reset_stok_terjual_reducer";
 import SchedulePullReducer from "./schedule_pull_reducer";
 import SealTicketReducer from "./seal_ticket_reducer";
 import SelesaiCetakReducer from "./selesai_cetak_reducer";
+import SetCatatanReducer from "./set_catatan_reducer";
+import SetCatatanPenjualanReducer from "./set_catatan_penjualan_reducer";
 import SetCekFotoUrlReducer from "./set_cek_foto_url_reducer";
 import SetConfigReducer from "./set_config_reducer";
+import SetOngkirReducer from "./set_ongkir_reducer";
 import SetPrinterReducer from "./set_printer_reducer";
+import SimpanBersihTerjualReducer from "./simpan_bersih_terjual_reducer";
 import SimpanFotoGaleriReducer from "./simpan_foto_galeri_reducer";
+import SimpanMintaStokReducer from "./simpan_minta_stok_reducer";
+import SimpanNotaTokoReducer from "./simpan_nota_toko_reducer";
 import SimpanPenjualanReducer from "./simpan_penjualan_reducer";
 import SubmitRetryTaskReducer from "./submit_retry_task_reducer";
 import TahanPenjualanReducer from "./tahan_penjualan_reducer";
 import TambahDeklarasiCekReducer from "./tambah_deklarasi_cek_reducer";
+import TutupPendaftaranReducer from "./tutup_pendaftaran_reducer";
+import UbahKontakCustomerReducer from "./ubah_kontak_customer_reducer";
+import UbahSalesmanReducer from "./ubah_salesman_reducer";
 import UpdateDeklarasiCekReducer from "./update_deklarasi_cek_reducer";
 import UpsertCustomerReducer from "./upsert_customer_reducer";
 import UpsertSalesmanReducer from "./upsert_salesman_reducer";
 import VoidLineReducer from "./void_line_reducer";
 
 // Import all procedure arg schemas
+import * as CustomerFullSyncAndReconcileProcedure from "./customer_full_sync_and_reconcile_procedure";
+import * as KirimCustomerErpProcedure from "./kirim_customer_erp_procedure";
+import * as KirimKeErpProcedure from "./kirim_ke_erp_procedure";
+import * as KirimPindahErpProcedure from "./kirim_pindah_erp_procedure";
 import * as PullCustomersProcedure from "./pull_customers_procedure";
 import * as PullItemsProcedure from "./pull_items_procedure";
 import * as PullStockProcedure from "./pull_stock_procedure";
+import * as TarikPenjualanErpProcedure from "./tarik_penjualan_erp_procedure";
 
 // Import all table schema definitions
-import AllowlistRow from "./allowlist_table";
 import AppConfigRow from "./app_config_table";
 import CekRow from "./cek_table";
 import CekFotoRow from "./cek_foto_table";
+import CekFotoAmanRow from "./cek_foto_aman_table";
 import CetakJobRow from "./cetak_job_table";
 import CronJobsRow from "./cron_jobs_table";
 import CustomerRow from "./customer_table";
+import ErpKirimRow from "./erp_kirim_table";
+import ErpKirimCustomerRow from "./erp_kirim_customer_table";
+import GerbangTolakRow from "./gerbang_tolak_table";
+import KeranjangPemilikRow from "./keranjang_pemilik_table";
+import MintaBersihTerjualRow from "./minta_bersih_terjual_table";
+import MintaTarikStokRow from "./minta_tarik_stok_table";
+import NotaTokoRow from "./nota_toko_table";
 import PenjualanRow from "./penjualan_table";
+import PenjualanErpRow from "./penjualan_erp_table";
 import PenjualanItemRow from "./penjualan_item_table";
+import PindahRow from "./pindah_table";
+import PindahItemRow from "./pindah_item_table";
+import PosLogRow from "./pos_log_table";
 import PrinterRow from "./printer_table";
 import ProductRow from "./product_table";
 import PullTimerRow from "./pull_timer_table";
@@ -87,28 +129,19 @@ import RekonRow from "./rekon_table";
 import SalesmanRow from "./salesman_table";
 import StaffRow from "./staff_table";
 import StockSnapshotRow from "./stock_snapshot_table";
+import StokPosRow from "./stok_pos_table";
 import SyncCursorRow from "./sync_cursor_table";
 import SyncLogRow from "./sync_log_table";
+import TarikTimerRow from "./tarik_timer_table";
 
 // Import namespace table schema definitions
-import Relations_FkRow from "./relations/fk_table";
 import Relations_UniqueRow from "./relations/unique_table";
+import Relations_FkRow from "./relations/fk_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
-  allowlist: __table({
-    name: 'allowlist',
-    indexes: [
-      { accessor: 'email', name: 'allowlist_email_idx_btree', algorithm: 'btree', columns: [
-        'email',
-      ] },
-    ],
-    constraints: [
-      { name: 'allowlist_email_key', constraint: 'unique', columns: ['email'] },
-    ],
-  }, AllowlistRow),
   appConfig: __table({
     name: 'app_config',
     indexes: [
@@ -171,6 +204,83 @@ const tablesSchema = __schema({
       { name: 'customer_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CustomerRow),
+  erpKirim: __table({
+    name: 'erp_kirim',
+    indexes: [
+      { accessor: 'orderNo', name: 'erp_kirim_order_no_idx_btree', algorithm: 'btree', columns: [
+        'orderNo',
+      ] },
+    ],
+    constraints: [
+      { name: 'erp_kirim_order_no_key', constraint: 'unique', columns: ['orderNo'] },
+    ],
+  }, ErpKirimRow),
+  erpKirimCustomer: __table({
+    name: 'erp_kirim_customer',
+    indexes: [
+      { accessor: 'id', name: 'erp_kirim_customer_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'erp_kirim_customer_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ErpKirimCustomerRow),
+  gerbangTolak: __table({
+    name: 'gerbang_tolak',
+    indexes: [
+      { accessor: 'sender', name: 'gerbang_tolak_sender_idx_btree', algorithm: 'btree', columns: [
+        'sender',
+      ] },
+    ],
+    constraints: [
+      { name: 'gerbang_tolak_sender_key', constraint: 'unique', columns: ['sender'] },
+    ],
+  }, GerbangTolakRow),
+  keranjangPemilik: __table({
+    name: 'keranjang_pemilik',
+    indexes: [
+      { accessor: 'orderNo', name: 'keranjang_pemilik_order_no_idx_btree', algorithm: 'btree', columns: [
+        'orderNo',
+      ] },
+    ],
+    constraints: [
+      { name: 'keranjang_pemilik_order_no_key', constraint: 'unique', columns: ['orderNo'] },
+    ],
+  }, KeranjangPemilikRow),
+  mintaBersihTerjual: __table({
+    name: 'minta_bersih_terjual',
+    indexes: [
+      { accessor: 'sku', name: 'minta_bersih_terjual_sku_idx_btree', algorithm: 'btree', columns: [
+        'sku',
+      ] },
+    ],
+    constraints: [
+      { name: 'minta_bersih_terjual_sku_key', constraint: 'unique', columns: ['sku'] },
+    ],
+  }, MintaBersihTerjualRow),
+  mintaTarikStok: __table({
+    name: 'minta_tarik_stok',
+    indexes: [
+      { accessor: 'sku', name: 'minta_tarik_stok_sku_idx_btree', algorithm: 'btree', columns: [
+        'sku',
+      ] },
+    ],
+    constraints: [
+      { name: 'minta_tarik_stok_sku_key', constraint: 'unique', columns: ['sku'] },
+    ],
+  }, MintaTarikStokRow),
+  notaToko: __table({
+    name: 'nota_toko',
+    indexes: [
+      { accessor: 'outlet', name: 'nota_toko_outlet_idx_btree', algorithm: 'btree', columns: [
+        'outlet',
+      ] },
+    ],
+    constraints: [
+      { name: 'nota_toko_outlet_key', constraint: 'unique', columns: ['outlet'] },
+    ],
+  }, NotaTokoRow),
   penjualan: __table({
     name: 'penjualan',
     indexes: [
@@ -186,6 +296,21 @@ const tablesSchema = __schema({
       { name: 'penjualan_order_no_key', constraint: 'unique', columns: ['orderNo'] },
     ],
   }, PenjualanRow),
+  penjualanErp: __table({
+    name: 'penjualan_erp',
+    indexes: [
+      { accessor: 'orderNo', name: 'penjualan_erp_order_no_idx_btree', algorithm: 'btree', columns: [
+        'orderNo',
+      ] },
+      { accessor: 'by_outlet_date', name: 'penjualan_erp_outlet_order_date_idx_btree', algorithm: 'btree', columns: [
+        'outlet',
+        'orderDate',
+      ] },
+    ],
+    constraints: [
+      { name: 'penjualan_erp_order_no_key', constraint: 'unique', columns: ['orderNo'] },
+    ],
+  }, PenjualanErpRow),
   penjualanItem: __table({
     name: 'penjualan_item',
     indexes: [
@@ -200,6 +325,45 @@ const tablesSchema = __schema({
       { name: 'penjualan_item_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PenjualanItemRow),
+  pindah: __table({
+    name: 'pindah',
+    indexes: [
+      { accessor: 'kode', name: 'pindah_kode_idx_btree', algorithm: 'btree', columns: [
+        'kode',
+      ] },
+    ],
+    constraints: [
+      { name: 'pindah_kode_key', constraint: 'unique', columns: ['kode'] },
+    ],
+  }, PindahRow),
+  pindahItem: __table({
+    name: 'pindah_item',
+    indexes: [
+      { accessor: 'kunci', name: 'pindah_item_kunci_idx_btree', algorithm: 'btree', columns: [
+        'kunci',
+      ] },
+      { accessor: 'by_pindah', name: 'pindah_item_pindah_kode_idx_btree', algorithm: 'btree', columns: [
+        'pindahKode',
+      ] },
+    ],
+    constraints: [
+      { name: 'pindah_item_kunci_key', constraint: 'unique', columns: ['kunci'] },
+    ],
+  }, PindahItemRow),
+  posLog: __table({
+    name: 'pos_log',
+    indexes: [
+      { accessor: 'by_at', name: 'pos_log_at_idx_btree', algorithm: 'btree', columns: [
+        'at',
+      ] },
+      { accessor: 'id', name: 'pos_log_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'pos_log_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PosLogRow),
   printer: __table({
     name: 'printer',
     indexes: [
@@ -280,6 +444,17 @@ const tablesSchema = __schema({
       { name: 'stock_snapshot_sku_key', constraint: 'unique', columns: ['sku'] },
     ],
   }, StockSnapshotRow),
+  stokPos: __table({
+    name: 'stok_pos',
+    indexes: [
+      { accessor: 'sku', name: 'stok_pos_sku_idx_btree', algorithm: 'btree', columns: [
+        'sku',
+      ] },
+    ],
+    constraints: [
+      { name: 'stok_pos_sku_key', constraint: 'unique', columns: ['sku'] },
+    ],
+  }, StokPosRow),
   syncCursor: __table({
     name: 'sync_cursor',
     indexes: [
@@ -302,6 +477,24 @@ const tablesSchema = __schema({
       { name: 'sync_log_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, SyncLogRow),
+  tarikTimer: __table({
+    name: 'tarik_timer',
+    indexes: [
+      { accessor: 'id', name: 'tarik_timer_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'tarik_timer_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, TarikTimerRow),
+  cekFotoAman: __table({
+    name: 'cek_foto_aman',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, CekFotoAmanRow),
   cronJobs: __table({
     name: 'cron_jobs',
     indexes: [
@@ -309,17 +502,6 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, CronJobsRow),
-  "relations.fk": __table({
-    name: 'relations.fk',
-    indexes: [
-      { accessor: 'id', name: 'fk_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'fk_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, Relations_FkRow),
   "relations.unique": __table({
     name: 'relations.unique',
     indexes: [
@@ -331,36 +513,73 @@ const tablesSchema = __schema({
       { name: 'unique_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, Relations_UniqueRow),
+  "relations.fk": __table({
+    name: 'relations.fk',
+    indexes: [
+      { accessor: 'id', name: 'fk_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'fk_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, Relations_FkRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_line", AddLineReducer),
   __reducerSchema("bersihkan_cek_lama", BersihkanCekLamaReducer),
+  __reducerSchema("buka_pendaftaran", BukaPendaftaranReducer),
   __reducerSchema("catat_bayar_cek", CatatBayarCekReducer),
+  __reducerSchema("catat_diagnosa", CatatDiagnosaReducer),
+  __reducerSchema("catat_log", CatatLogReducer),
+  __reducerSchema("catat_penjualan", CatatPenjualanReducer),
   __reducerSchema("catat_sync_log", CatatSyncLogReducer),
+  __reducerSchema("cetak_ulang", CetakUlangReducer),
+  __reducerSchema("daftarkan_perangkat", DaftarkanPerangkatReducer),
+  __reducerSchema("hapus_customer_lokal", HapusCustomerLokalReducer),
   __reducerSchema("hapus_deklarasi_cek", HapusDeklarasiCekReducer),
   __reducerSchema("hapus_keranjang", HapusKeranjangReducer),
   __reducerSchema("hapus_penjualan", HapusPenjualanReducer),
   __reducerSchema("hapus_salesman", HapusSalesmanReducer),
+  __reducerSchema("hitung_ulang_stok_terjual", HitungUlangStokTerjualReducer),
   __reducerSchema("impor_akun_dari_arsip", ImporAkunDariArsipReducer),
   __reducerSchema("impor_cek_dari_arsip", ImporCekDariArsipReducer),
+  __reducerSchema("impor_log_dari_arsip", ImporLogDariArsipReducer),
+  __reducerSchema("impor_penjualan_dari_arsip", ImporPenjualanDariArsipReducer),
   __reducerSchema("klaim_akun", KlaimAkunReducer),
   __reducerSchema("lanjutkan_penjualan", LanjutkanPenjualanReducer),
+  __reducerSchema("lepas_paksa", LepasPaksaReducer),
+  __reducerSchema("matikan_timer", MatikanTimerReducer),
   __reducerSchema("open_ticket", OpenTicketReducer),
+  __reducerSchema("perbaiki_penjual_hex", PerbaikiPenjualHexReducer),
+  __reducerSchema("perbaiki_pindah", PerbaikiPindahReducer),
+  __reducerSchema("pindah_barang", PindahBarangReducer),
+  __reducerSchema("pulihkan_baris", PulihkanBarisReducer),
   __reducerSchema("rapikan_foto_cek_yatim", RapikanFotoCekYatimReducer),
   __reducerSchema("reconcile_outlet", ReconcileOutletReducer),
+  __reducerSchema("reset_stok_terjual", ResetStokTerjualReducer),
   __reducerSchema("schedule_pull", SchedulePullReducer),
   __reducerSchema("seal_ticket", SealTicketReducer),
   __reducerSchema("selesai_cetak", SelesaiCetakReducer),
+  __reducerSchema("set_catatan", SetCatatanReducer),
+  __reducerSchema("set_catatan_penjualan", SetCatatanPenjualanReducer),
   __reducerSchema("set_cek_foto_url", SetCekFotoUrlReducer),
   __reducerSchema("set_config", SetConfigReducer),
+  __reducerSchema("set_ongkir", SetOngkirReducer),
   __reducerSchema("set_printer", SetPrinterReducer),
+  __reducerSchema("simpan_bersih_terjual", SimpanBersihTerjualReducer),
   __reducerSchema("simpan_foto_galeri", SimpanFotoGaleriReducer),
+  __reducerSchema("simpan_minta_stok", SimpanMintaStokReducer),
+  __reducerSchema("simpan_nota_toko", SimpanNotaTokoReducer),
   __reducerSchema("simpan_penjualan", SimpanPenjualanReducer),
   __reducerSchema("submit_retry_task", SubmitRetryTaskReducer),
   __reducerSchema("tahan_penjualan", TahanPenjualanReducer),
   __reducerSchema("tambah_deklarasi_cek", TambahDeklarasiCekReducer),
+  __reducerSchema("tutup_pendaftaran", TutupPendaftaranReducer),
+  __reducerSchema("ubah_kontak_customer", UbahKontakCustomerReducer),
+  __reducerSchema("ubah_salesman", UbahSalesmanReducer),
   __reducerSchema("update_deklarasi_cek", UpdateDeklarasiCekReducer),
   __reducerSchema("upsert_customer", UpsertCustomerReducer),
   __reducerSchema("upsert_salesman", UpsertSalesmanReducer),
@@ -369,9 +588,14 @@ const reducersSchema = __reducers(
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("customer_full_sync_and_reconcile", CustomerFullSyncAndReconcileProcedure.params, CustomerFullSyncAndReconcileProcedure.returnType),
+  __procedureSchema("kirim_customer_erp", KirimCustomerErpProcedure.params, KirimCustomerErpProcedure.returnType),
+  __procedureSchema("kirim_ke_erp", KirimKeErpProcedure.params, KirimKeErpProcedure.returnType),
+  __procedureSchema("kirim_pindah_erp", KirimPindahErpProcedure.params, KirimPindahErpProcedure.returnType),
   __procedureSchema("pull_customers", PullCustomersProcedure.params, PullCustomersProcedure.returnType),
   __procedureSchema("pull_items", PullItemsProcedure.params, PullItemsProcedure.returnType),
   __procedureSchema("pull_stock", PullStockProcedure.params, PullStockProcedure.returnType),
+  __procedureSchema("tarik_penjualan_erp", TarikPenjualanErpProcedure.params, TarikPenjualanErpProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */
@@ -391,14 +615,24 @@ const REMOTE_MODULE = {
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */
 const __qb = __makeQueryBuilder(tablesSchema.schemaType);
 export const tables = {
-  allowlist: __qb.allowlist,
   appConfig: __qb.appConfig,
   cek: __qb.cek,
   cekFoto: __qb.cekFoto,
   cetakJob: __qb.cetakJob,
   customer: __qb.customer,
+  erpKirim: __qb.erpKirim,
+  erpKirimCustomer: __qb.erpKirimCustomer,
+  gerbangTolak: __qb.gerbangTolak,
+  keranjangPemilik: __qb.keranjangPemilik,
+  mintaBersihTerjual: __qb.mintaBersihTerjual,
+  mintaTarikStok: __qb.mintaTarikStok,
+  notaToko: __qb.notaToko,
   penjualan: __qb.penjualan,
+  penjualanErp: __qb.penjualanErp,
   penjualanItem: __qb.penjualanItem,
+  pindah: __qb.pindah,
+  pindahItem: __qb.pindahItem,
+  posLog: __qb.posLog,
   printer: __qb.printer,
   product: __qb.product,
   pullTimer: __qb.pullTimer,
@@ -406,12 +640,15 @@ export const tables = {
   salesman: __qb.salesman,
   staff: __qb.staff,
   stockSnapshot: __qb.stockSnapshot,
+  stokPos: __qb.stokPos,
   syncCursor: __qb.syncCursor,
   syncLog: __qb.syncLog,
+  tarikTimer: __qb.tarikTimer,
+  cekFotoAman: __qb.cekFotoAman,
   cronJobs: __qb.cronJobs,
   relations: {
-    fk: __qb["relations.fk"],
     unique: __qb["relations.unique"],
+    fk: __qb["relations.fk"],
   },
 } as const;
 

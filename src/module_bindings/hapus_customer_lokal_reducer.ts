@@ -11,13 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  transNo: __t.string(),
-  outlet: __t.string(),
-  transDate: __t.string(),
-  refNo: __t.string(),
-  supplierName: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  itemsJson: __t.string(),
+  id: __t.string(),
+  v: __t.i32(),
 };

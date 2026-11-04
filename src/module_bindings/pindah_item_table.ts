@@ -11,13 +11,8 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  transNo: __t.string().primaryKey().name("trans_no"),
-  outlet: __t.string(),
-  transDate: __t.string().name("trans_date"),
-  refNo: __t.string().name("ref_no"),
-  destination: __t.string(),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp().name("updated_at"),
+  kunci: __t.string().primaryKey(),
+  pindahKode: __t.string().name("pindah_kode"),
+  sku: __t.string(),
+  qty: __t.i32(),
 });

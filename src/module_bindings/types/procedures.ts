@@ -6,14 +6,29 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as CustomerFullSyncAndReconcileProcedure from "../customer_full_sync_and_reconcile_procedure";
+import * as KirimCustomerErpProcedure from "../kirim_customer_erp_procedure";
+import * as KirimKeErpProcedure from "../kirim_ke_erp_procedure";
+import * as KirimPindahErpProcedure from "../kirim_pindah_erp_procedure";
 import * as PullCustomersProcedure from "../pull_customers_procedure";
 import * as PullItemsProcedure from "../pull_items_procedure";
 import * as PullStockProcedure from "../pull_stock_procedure";
+import * as TarikPenjualanErpProcedure from "../tarik_penjualan_erp_procedure";
 
+export type CustomerFullSyncAndReconcileArgs = __Infer<typeof CustomerFullSyncAndReconcileProcedure.params>;
+export type CustomerFullSyncAndReconcileResult = __Infer<typeof CustomerFullSyncAndReconcileProcedure.returnType>;
+export type KirimCustomerErpArgs = __Infer<typeof KirimCustomerErpProcedure.params>;
+export type KirimCustomerErpResult = __Infer<typeof KirimCustomerErpProcedure.returnType>;
+export type KirimKeErpArgs = __Infer<typeof KirimKeErpProcedure.params>;
+export type KirimKeErpResult = __Infer<typeof KirimKeErpProcedure.returnType>;
+export type KirimPindahErpArgs = __Infer<typeof KirimPindahErpProcedure.params>;
+export type KirimPindahErpResult = __Infer<typeof KirimPindahErpProcedure.returnType>;
 export type PullCustomersArgs = __Infer<typeof PullCustomersProcedure.params>;
 export type PullCustomersResult = __Infer<typeof PullCustomersProcedure.returnType>;
 export type PullItemsArgs = __Infer<typeof PullItemsProcedure.params>;
 export type PullItemsResult = __Infer<typeof PullItemsProcedure.returnType>;
 export type PullStockArgs = __Infer<typeof PullStockProcedure.params>;
 export type PullStockResult = __Infer<typeof PullStockProcedure.returnType>;
+export type TarikPenjualanErpArgs = __Infer<typeof TarikPenjualanErpProcedure.params>;
+export type TarikPenjualanErpResult = __Infer<typeof TarikPenjualanErpProcedure.returnType>;
 

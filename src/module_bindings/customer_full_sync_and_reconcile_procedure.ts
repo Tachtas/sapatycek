@@ -10,12 +10,6 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  id: __t.u64().primaryKey(),
-  transNo: __t.string().name("trans_no"),
-  itemCode: __t.string().name("item_code"),
-  itemName: __t.string().name("item_name"),
-  systemQty: __t.i32().name("system_qty"),
-  realQty: __t.i32().name("real_qty"),
-  diffQty: __t.i32().name("diff_qty"),
-});
+export const params = {
+};
+export const returnType = __t.i32()

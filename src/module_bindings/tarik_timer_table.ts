@@ -10,15 +10,7 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  returnNo: __t.string(),
-  outlet: __t.string(),
-  returnDate: __t.string(),
-  returnTime: __t.string(),
-  orderNo: __t.string(),
-  customerName: __t.string(),
-  reason: __t.string(),
-  total: __t.i64(),
-  raw: __t.string(),
-  itemsJson: __t.string(),
-};
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  at: __t.scheduleAt(),
+});

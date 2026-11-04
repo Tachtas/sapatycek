@@ -11,15 +11,16 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u64().primaryKey(),
+  orderNo: __t.string().primaryKey().name("order_no"),
   outlet: __t.string(),
-  salesman: __t.identity(),
-  customerId: __t.option(__t.string()).name("customer_id"),
-  payMode: __t.option(__t.string()).name("pay_mode"),
-  status: __t.string(),
-  openedAt: __t.timestamp().name("opened_at"),
-  sealedAt: __t.option(__t.timestamp()).name("sealed_at"),
-  subtotal: __t.i64(),
-  diskon: __t.i64(),
+  orderDate: __t.string().name("order_date"),
+  orderTime: __t.string().name("order_time"),
+  customerName: __t.string().name("customer_name"),
+  salesman: __t.string(),
+  paymentType: __t.string().name("payment_type"),
   total: __t.i64(),
+  status: __t.string(),
+  invoice: __t.string(),
+  itemsJson: __t.string().name("items_json"),
+  erpAt: __t.timestamp().name("erp_at"),
 });

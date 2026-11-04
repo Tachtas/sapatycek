@@ -11,11 +11,9 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u64().primaryKey(),
-  transNo: __t.string().name("trans_no"),
-  itemCode: __t.string().name("item_code"),
-  itemName: __t.string().name("item_name"),
-  qty: __t.i32(),
-  uom: __t.string(),
-  price: __t.i64(),
+  id: __t.string().primaryKey(),
+  aksi: __t.string(),
+  status: __t.string(),
+  percobaan: __t.i32(),
+  pesan: __t.string(),
 });

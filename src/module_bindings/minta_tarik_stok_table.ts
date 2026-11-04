@@ -11,14 +11,7 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  returnNo: __t.string().primaryKey().name("return_no"),
+  sku: __t.string().primaryKey(),
   outlet: __t.string(),
-  returnDate: __t.string().name("return_date"),
-  returnTime: __t.string().name("return_time"),
-  orderNo: __t.string().name("order_no"),
-  customerName: __t.string().name("customer_name"),
-  reason: __t.string(),
-  total: __t.i64(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp().name("updated_at"),
+  at: __t.timestamp(),
 });

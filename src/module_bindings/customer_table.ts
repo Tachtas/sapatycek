@@ -14,4 +14,7 @@ export default __t.row({
   id: __t.string().primaryKey(),
   label: __t.string(),
   outlet: __t.string(),
+  transaksi: __t.i32(),
+  lokal: __t.bool(),
+  kontak: __t.string(),
 });

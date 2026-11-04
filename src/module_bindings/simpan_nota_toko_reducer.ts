@@ -10,14 +10,9 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  transNo: __t.string().primaryKey().name("trans_no"),
+export default {
   outlet: __t.string(),
-  transDate: __t.string().name("trans_date"),
-  refNo: __t.string().name("ref_no"),
-  supplierName: __t.string().name("supplier_name"),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp().name("updated_at"),
-});
+  alamat: __t.string(),
+  rekening: __t.string(),
+  v: __t.i32(),
+};

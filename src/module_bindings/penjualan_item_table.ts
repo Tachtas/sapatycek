@@ -28,4 +28,6 @@ export default __t.row({
   amount: __t.i64(),
   cogs: __t.i64(),
   profit: __t.i64(),
+  no: __t.i32(),
+  catatan: __t.string(),
 });

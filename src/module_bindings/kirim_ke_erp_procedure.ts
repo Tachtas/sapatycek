@@ -10,12 +10,6 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  transNo: __t.string().primaryKey().name("trans_no"),
-  outlet: __t.string(),
-  opnameDate: __t.string().name("opname_date"),
-  note: __t.string(),
-  status: __t.string(),
-  raw: __t.string(),
-  updatedAt: __t.timestamp().name("updated_at"),
-});
+export const params = {
+};
+export const returnType = __t.i32()

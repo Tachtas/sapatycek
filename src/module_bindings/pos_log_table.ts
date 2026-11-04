@@ -11,9 +11,15 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  email: __t.string().primaryKey(),
-  label: __t.string(),
+  id: __t.u64().primaryKey(),
+  at: __t.timestamp(),
+  waktuLokal: __t.string().name("waktu_lokal"),
   outlet: __t.string(),
-  active: __t.bool(),
-  role: __t.string(),
+  appVersi: __t.string().name("app_versi"),
+  peristiwa: __t.string(),
+  detail: __t.string(),
+  orderNo: __t.string().name("order_no"),
+  online: __t.bool(),
+  connAktif: __t.bool().name("conn_aktif"),
+  baris: __t.i32(),
 });

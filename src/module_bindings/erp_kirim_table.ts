@@ -11,15 +11,11 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u64().primaryKey(),
+  orderNo: __t.string().primaryKey().name("order_no"),
+  aksi: __t.string(),
   outlet: __t.string(),
-  salesman: __t.identity(),
-  customerId: __t.option(__t.string()).name("customer_id"),
-  payMode: __t.option(__t.string()).name("pay_mode"),
+  tanggal: __t.string(),
   status: __t.string(),
-  openedAt: __t.timestamp().name("opened_at"),
-  sealedAt: __t.option(__t.timestamp()).name("sealed_at"),
-  subtotal: __t.i64(),
-  diskon: __t.i64(),
-  total: __t.i64(),
+  percobaan: __t.i32(),
+  pesan: __t.string(),
 });

@@ -10,15 +10,6 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export const Allowlist = __t.object("Allowlist", {
-  email: __t.string(),
-  label: __t.string(),
-  outlet: __t.string(),
-  active: __t.bool(),
-  role: __t.string(),
-});
-export type Allowlist = __Infer<typeof Allowlist>;
-
 export const AppConfig = __t.object("AppConfig", {
   key: __t.string(),
   value: __t.string(),
@@ -54,6 +45,9 @@ export const CekFoto = __t.object("CekFoto", {
   createdAt: __t.timestamp(),
 });
 export type CekFoto = __Infer<typeof CekFoto>;
+
+export const CekFotoAman = __t.object("CekFotoAman", {});
+export type CekFotoAman = __Infer<typeof CekFotoAman>;
 
 export const CetakJob = __t.object("CetakJob", {
   id: __t.u64(),
@@ -165,13 +159,77 @@ export const Customer = __t.object("Customer", {
   id: __t.string(),
   label: __t.string(),
   outlet: __t.string(),
+  transaksi: __t.i32(),
+  lokal: __t.bool(),
+  kontak: __t.string(),
 });
 export type Customer = __Infer<typeof Customer>;
+
+export const ErpKirim = __t.object("ErpKirim", {
+  orderNo: __t.string(),
+  aksi: __t.string(),
+  outlet: __t.string(),
+  tanggal: __t.string(),
+  status: __t.string(),
+  percobaan: __t.i32(),
+  pesan: __t.string(),
+});
+export type ErpKirim = __Infer<typeof ErpKirim>;
+
+export const ErpKirimCustomer = __t.object("ErpKirimCustomer", {
+  id: __t.string(),
+  aksi: __t.string(),
+  status: __t.string(),
+  percobaan: __t.i32(),
+  pesan: __t.string(),
+});
+export type ErpKirimCustomer = __Infer<typeof ErpKirimCustomer>;
 
 export const EverySpec = __t.object("EverySpec", {
   seconds: __t.u32(),
 });
 export type EverySpec = __Infer<typeof EverySpec>;
+
+export const GerbangTolak = __t.object("GerbangTolak", {
+  sender: __t.string(),
+  pertama: __t.timestamp(),
+  terakhir: __t.timestamp(),
+  jumlah: __t.u32(),
+});
+export type GerbangTolak = __Infer<typeof GerbangTolak>;
+
+export const KeranjangPemilik = __t.object("KeranjangPemilik", {
+  orderNo: __t.string(),
+  salesmanId: __t.string(),
+  deviceIdentity: __t.identity(),
+  pembuatLabel: __t.string(),
+  at: __t.timestamp(),
+  lastSeen: __t.timestamp(),
+});
+export type KeranjangPemilik = __Infer<typeof KeranjangPemilik>;
+
+export const MintaBersihTerjual = __t.object("MintaBersihTerjual", {
+  sku: __t.string(),
+  outlet: __t.string(),
+  at: __t.timestamp(),
+  tanggal: __t.string(),
+});
+export type MintaBersihTerjual = __Infer<typeof MintaBersihTerjual>;
+
+export const MintaTarikStok = __t.object("MintaTarikStok", {
+  sku: __t.string(),
+  outlet: __t.string(),
+  at: __t.timestamp(),
+});
+export type MintaTarikStok = __Infer<typeof MintaTarikStok>;
+
+export const NotaToko = __t.object("NotaToko", {
+  outlet: __t.string(),
+  alamat: __t.string(),
+  rekening: __t.string(),
+  aktif: __t.bool(),
+});
+export type NotaToko = __Infer<typeof NotaToko>;
 
 export const Penjualan = __t.object("Penjualan", {
   orderNo: __t.string(),
@@ -205,6 +263,22 @@ export const Penjualan = __t.object("Penjualan", {
 });
 export type Penjualan = __Infer<typeof Penjualan>;
 
+export const PenjualanErp = __t.object("PenjualanErp", {
+  orderNo: __t.string(),
+  outlet: __t.string(),
+  orderDate: __t.string(),
+  orderTime: __t.string(),
+  customerName: __t.string(),
+  salesman: __t.string(),
+  paymentType: __t.string(),
+  total: __t.i64(),
+  status: __t.string(),
+  invoice: __t.string(),
+  itemsJson: __t.string(),
+  erpAt: __t.timestamp(),
+});
+export type PenjualanErp = __Infer<typeof PenjualanErp>;
+
 export const PenjualanItem = __t.object("PenjualanItem", {
   id: __t.u64(),
   orderNo: __t.string(),
@@ -223,8 +297,48 @@ export const PenjualanItem = __t.object("PenjualanItem", {
   amount: __t.i64(),
   cogs: __t.i64(),
   profit: __t.i64(),
+  no: __t.i32(),
+  catatan: __t.string(),
 });
 export type PenjualanItem = __Infer<typeof PenjualanItem>;
+
+export const Pindah = __t.object("Pindah", {
+  kode: __t.string(),
+  dari: __t.string(),
+  ke: __t.string(),
+  oleh: __t.string(),
+  pic: __t.string(),
+  catatan: __t.string(),
+  status: __t.string(),
+  percobaan: __t.i32(),
+  dokumen: __t.string(),
+  pesan: __t.string(),
+  dibuatAt: __t.timestamp(),
+});
+export type Pindah = __Infer<typeof Pindah>;
+
+export const PindahItem = __t.object("PindahItem", {
+  kunci: __t.string(),
+  pindahKode: __t.string(),
+  sku: __t.string(),
+  qty: __t.i32(),
+});
+export type PindahItem = __Infer<typeof PindahItem>;
+
+export const PosLog = __t.object("PosLog", {
+  id: __t.u64(),
+  at: __t.timestamp(),
+  waktuLokal: __t.string(),
+  outlet: __t.string(),
+  appVersi: __t.string(),
+  peristiwa: __t.string(),
+  detail: __t.string(),
+  orderNo: __t.string(),
+  online: __t.bool(),
+  connAktif: __t.bool(),
+  baris: __t.i32(),
+});
+export type PosLog = __Infer<typeof PosLog>;
 
 export const Printer = __t.object("Printer", {
   outlet: __t.string(),
@@ -240,7 +354,6 @@ export const Product = __t.object("Product", {
   price: __t.i64(),
   buyPrice: __t.i64(),
   uom: __t.string(),
-  outlet: __t.string(),
   erpModified: __t.string(),
   active: __t.bool(),
 });
@@ -342,6 +455,14 @@ export const StockSnapshot = __t.object("StockSnapshot", {
 });
 export type StockSnapshot = __Infer<typeof StockSnapshot>;
 
+export const StokPos = __t.object("StokPos", {
+  sku: __t.string(),
+  terjual: __t.i64(),
+  at: __t.timestamp(),
+  tanggal: __t.string(),
+});
+export type StokPos = __Infer<typeof StokPos>;
+
 export const SweepCekFire = __t.object("SweepCekFire", {
   scheduledId: __t.u64(),
   scheduledAt: __t.scheduleAt(),
@@ -375,4 +496,10 @@ export const SyncOrderTask = __t.object("SyncOrderTask", {
   outlet: __t.string(),
 });
 export type SyncOrderTask = __Infer<typeof SyncOrderTask>;
+
+export const TarikTimer = __t.object("TarikTimer", {
+  id: __t.u64(),
+  at: __t.scheduleAt(),
+});
+export type TarikTimer = __Infer<typeof TarikTimer>;
 

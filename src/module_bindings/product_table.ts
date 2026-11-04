@@ -17,7 +17,6 @@ export default __t.row({
   price: __t.i64(),
   buyPrice: __t.i64().name("buy_price"),
   uom: __t.string(),
-  outlet: __t.string(),
   erpModified: __t.string().name("erp_modified"),
   active: __t.bool(),
 });

@@ -11,12 +11,8 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u64().primaryKey(),
-  outlet: __t.string(),
-  kind: __t.string(),
-  amount: __t.i64(),
-  account: __t.string(),
-  note: __t.string(),
-  by: __t.identity(),
+  sku: __t.string().primaryKey(),
+  terjual: __t.i64(),
   at: __t.timestamp(),
+  tanggal: __t.string(),
 });
