@@ -1,5 +1,21 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import {
+    Lock,
+    Hourglass,
+    Ban,
+    ListChecks,
+    Eraser,
+    TriangleAlert,
+    Camera,
+    Image,
+    X,
+    Check,
+    Search,
+    Trash,
+    ChevronLeft,
+    ChevronRight,
+  } from '@lucide/svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
   import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan } from './lib/cek';
@@ -14,6 +30,15 @@
 
   // Tanggal otomatis hari ini Asia/Jayapura (WIT, UTC+9)
   const tanggal = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jayapura' }).format(new Date());
+
+  // Judul periode di kepala halaman: rekonsiliasi selalu PER HARI, jadi
+  // tanggalnya harus terbaca di layar (dulu tidak pernah disebut sama sekali).
+  const judulTanggal = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jayapura',
+  }).format(new Date(`${tanggal}T05:00:00Z`));
 
   let conn = $state<any>(null);
   let statusKoneksi = $state<'menghubungkan' | 'terhubung' | 'terputus'>('menghubungkan');
@@ -31,7 +56,7 @@
   let inputCepatEl = $state<HTMLInputElement | null>(null);
   let inputBayarEl = $state<HTMLInputElement | null>(null);
 
-  // Status fokus kursor di bayar untuk efek flashing
+  // Status fokus kursor di bayar untuk sorot baris target
   let isBayarFocused = $state(false);
 
   let menyimpanCek = $state(false);
@@ -60,7 +85,7 @@
   let pesanGalat = $state<string | null>(null);
   let timerGalat: any = null;
 
-  // Flash highlight visual saat row baru ditambah
+  // Sorot baris baru (sekali, tidak berdenyut)
   let flashCekId = $state<bigint | null>(null);
   let timerFlash: any = null;
 
@@ -95,7 +120,7 @@
   }
 
   // Pelunasan hilang otomatis begitu kasir mulai mengetik cek baru (transaksi
-  // baru), atau saat tombol ✕ ditekan.
+  // baru), atau saat tombol tutup ditekan.
   function tutupPelunasan() {
     pesanPelunasan = null;
   }
@@ -113,7 +138,7 @@
     flashCekId = id;
     timerFlash = setTimeout(() => {
       flashCekId = null;
-    }, 2500);
+    }, 1200);
   }
 
   // Daftar salesman dinamis dari SpacetimeDB (disinkronkan dari ERPNext tabSales Person)
@@ -394,7 +419,7 @@
         tipe,
         at: Date.now(),
       });
-      setPesanGalat(`⏳ Tersimpan di HP (${antrean.daftar.length} belum terkirim) — dikirim otomatis begitu tersambung.`);
+      setPesanGalat(`Tersimpan di HP (${antrean.daftar.length} belum terkirim) — dikirim otomatis begitu tersambung.`);
       pendingCekNominal = null;
       return;
     }
@@ -717,9 +742,19 @@
     });
   });
 
-
-
-
+  // Label koneksi (teks tenang, bukan pil menyala)
+  const statusTeks = $derived(
+    statusKoneksi === 'terhubung'
+      ? 'Tersambung'
+      : statusKoneksi === 'menghubungkan'
+        ? 'Menyambung…'
+        : gagalKoneksi
+          ? 'Perlu masuk ulang'
+          : 'Terputus'
+  );
+  const statusNada = $derived(
+    statusKoneksi === 'terhubung' ? 'bg-ok' : statusKoneksi === 'menghubungkan' ? 'bg-muted' : 'bg-bad'
+  );
 
   // ==================== GERBANG LOGIN (SpacetimeAuth / Google) ====================
   const EMAIL_DIIZINKAN = 'tachtasandangsjb@gmail.com';
@@ -790,7 +825,7 @@
       sedangKirimAntrean = false;
     }
     if (terkirim > 0) {
-      setPesanGalat(`✓ ${terkirim} cek dari HP terkirim.${antrean.daftar.length ? ` Sisa ${antrean.daftar.length} menunggu.` : ''}`);
+      setPesanGalat(`${terkirim} cek dari HP terkirim.${antrean.daftar.length ? ` Sisa ${antrean.daftar.length} menunggu.` : ''}`);
     }
   }
 
@@ -835,107 +870,138 @@
   }
 </script>
 
+<!-- Kelas bersama: permukaan dasar + cincin fokus keyboard -->
 {#if sesi.status === 'belum_login'}
-  <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
-      <div class="text-4xl">🔒</div>
-      <div class="text-lg font-bold text-slate-900">Sapaty Cek</div>
-      <div class="text-xs text-slate-500">Halaman ini hanya untuk akun terdaftar.<br />Masuk dengan Google via SpacetimeDB.</div>
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+      <Lock size={20} strokeWidth={1.5} class="text-muted" />
+      <div class="mt-4 text-[17px] font-semibold text-ink">Sapaty Cek</div>
+      <p class="mt-1 text-[13px] leading-5 text-ink2">
+        Halaman ini hanya untuk akun terdaftar. Masuk dengan Google melalui SpacetimeDB.
+      </p>
       <button
         type="button"
         onclick={masukGoogle}
-        class="w-full h-10 rounded-lg bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors"
+        class="mt-5 h-11 w-full rounded-lg bg-ink text-[13px] font-medium text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Masuk dengan Google
       </button>
     </div>
   </div>
 {:else if sesi.status === 'kedaluwarsa'}
-  <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl border border-amber-300 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
-      <div class="text-4xl">⏳</div>
-      <div class="text-lg font-bold text-amber-700">Sesi login habis</div>
-      <div class="text-xs text-slate-500">
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+      <Hourglass size={20} strokeWidth={1.5} class="text-accent" />
+      <div class="mt-4 text-[17px] font-semibold text-ink">Sesi login habis</div>
+      <p class="mt-1 text-[13px] leading-5 text-ink2">
         Masa berlaku login SpacetimeAuth sekitar 1 jam — itulah sebabnya indikator jadi kuning dan input cek
-        tidak bisa dipakai. Masuk lagi untuk melanjutkan (tidak ada input yang hilang).
-      </div>
+        tidak bisa dipakai. Masuk lagi untuk melanjutkan; tidak ada input yang hilang.
+      </p>
       <button
         type="button"
         data-ui="masukUlang"
         onclick={masukGoogle}
-        class="w-full h-10 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors"
+        class="mt-5 h-11 w-full rounded-lg bg-ink text-[13px] font-medium text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Masuk lagi dengan Google
       </button>
     </div>
   </div>
 {:else if sesi.status === 'ditolak'}
-  <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl border border-rose-200 shadow-xs p-6 max-w-sm w-full text-center space-y-3">
-      <div class="text-4xl">⛔</div>
-      <div class="text-lg font-bold text-rose-700">Akses ditolak</div>
-      <div class="text-xs text-slate-500">Akun <b>{sesi.email}</b> tidak diizinkan membuka halaman ini.</div>
+  <div class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+      <Ban size={20} strokeWidth={1.5} class="text-bad" />
+      <div class="mt-4 text-[17px] font-semibold text-ink">Akses ditolak</div>
+      <p class="mt-1 text-[13px] leading-5 text-ink2">
+        Akun <span class="font-medium text-ink">{sesi.email}</span> tidak diizinkan membuka halaman ini.
+      </p>
       <button
         type="button"
         onclick={() => logout()}
-        class="w-full h-10 rounded-lg bg-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-300 transition-colors"
+        class="mt-5 h-11 w-full rounded-lg border border-ink/15 bg-raised text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Ganti akun
       </button>
     </div>
   </div>
 {:else}
-<div class="max-w-6xl mx-auto p-3 sm:p-4 space-y-3">
-  <!-- STICKY WRAPPER: card info + input kasir + tabs tetap di atas saat scroll -->
-  <div class="sticky top-0 z-20 space-y-2 bg-slate-50 -mt-3 pt-3 pb-2 -mx-3 px-3 sm:-mt-4 sm:pt-4 sm:-mx-4 sm:px-4">
-  <!-- 1. KARTU INFORMASI: sudah diinput vs belum diinput vs beda tafsir -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
-      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cek diinput</div>
-      <div class="text-sm font-bold text-slate-900">{ringkasan.jmlCek} cek · {rupiah(ringkasan.totalCek)}</div>
-      <div class="text-[11px] font-mono {ringkasan.jmlBelumCocok > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
-        {ringkasan.jmlCocok} sudah input · {ringkasan.jmlBelumCocok} belum input
+<div class="mx-auto max-w-6xl px-6 py-6 space-y-5">
+  <!-- KEPALA: nama, outlet, PERIODE (rekonsiliasi selalu per hari), status -->
+  <header class="flex flex-wrap items-end justify-between gap-4 border-b border-ink/10 pb-4">
+    <div>
+      <div class="flex items-baseline gap-2">
+        <span class="text-[17px] font-semibold tracking-tight text-ink">Sapaty Cek</span>
+        <span class="text-[13px] text-muted">Rekonsiliasi kasir</span>
+      </div>
+      <div class="mt-1 flex items-center gap-2 text-[13px]">
+        <span class="font-medium text-ink2">{OUTLET}</span>
+        <span class="text-ink/20">/</span>
+        <span class="font-mono text-muted">{judulTanggal}</span>
       </div>
     </div>
-
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
-      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Belum diinput (POS)</div>
-      <div class="text-sm font-bold {ringkasan.penjualanTanpaCek.length > 0 ? 'text-amber-600' : 'text-slate-700'}">
-        {ringkasan.penjualanTanpaCek.length} order · {rupiah(nilaiTanpaCek)}
-      </div>
-      <div class="text-[11px] text-slate-400">pesanan tanpa cek</div>
+    <div class="flex items-center gap-2 text-[12px] text-ink2">
+      <span class="h-1.5 w-1.5 rounded-full {statusNada}"></span>
+      <span>{statusTeks}</span>
     </div>
+  </header>
 
-    <div class="bg-white px-3 py-2 rounded-lg border {jmlBedaBayar > 0 ? 'border-rose-300' : 'border-slate-200'} shadow-xs">
-      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Beda cara bayar</div>
-      <div class="text-sm font-bold {jmlBedaBayar > 0 ? 'text-rose-600' : 'text-slate-700'}">
-        {jmlBedaBayar} cek
-      </div>
-      <div class="text-[11px] text-slate-400">cek kasir ≠ input Ollsera</div>
+  <!-- SALDO HARI: satu momen yang membawa angka besar, lalu tiga angka ringkas -->
+  <section class="rounded-2xl border border-ink/10 bg-card p-6">
+    <h2 class="text-[13px] font-medium text-muted">Saldo hari</h2>
+
+    <div class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[15px] text-ink2">
+      <span class="whitespace-nowrap">Penjualan POS {rupiah(ringkasan.totalPenjualan)}</span>
+      <span class="whitespace-nowrap">− Cek kasir {rupiah(ringkasan.totalCek)}</span>
     </div>
+    <div class="mt-4 flex items-baseline gap-3 border-t border-ink/10 pt-4">
+      <span class="text-[13px] text-muted">Selisih</span>
+      <span class="whitespace-nowrap font-mono text-[34px] font-medium leading-none {ringkasan.selisih === 0 ? 'text-ink' : 'text-bad'}">
+        {rupiah(ringkasan.selisih)}
+      </span>
+    </div>
+    <p class="mt-3 max-w-lg text-[13px] text-muted">
+      Register POS dikurangi cek kasir untuk {judulTanggal}. Nol berarti buku cocok.
+    </p>
 
-    <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
-      <div class="flex items-start justify-between">
-        <div>
-          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selisih</div>
-          <div class="text-sm font-bold {ringkasan.selisih === 0 ? 'text-emerald-600' : 'text-rose-600'}">
-            {rupiah(ringkasan.selisih)}
+    <dl class="mt-5 grid divide-y divide-ink/10 border-t border-ink/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <div class="py-3 sm:py-4 sm:pr-6">
+        <dt class="text-[13px] text-ink2">Cek diinput</dt>
+        <dd class="mt-1.5">
+          <div class="font-mono text-[17px] text-ink">{ringkasan.jmlCek} cek</div>
+          <div class="mt-1 font-mono text-[12px] text-muted">{rupiah(ringkasan.totalCek)}</div>
+          <div class="mt-0.5 font-mono text-[12px] text-muted">
+            <span class={ringkasan.jmlBelumCocok > 0 ? 'text-bad' : 'text-ok'}>{ringkasan.jmlCocok} sudah input</span>
+            · {ringkasan.jmlBelumCocok} belum input
           </div>
-        </div>
-        <span class="text-[9px] px-1.5 py-0.5 rounded font-bold {statusKoneksi === 'terhubung' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-          {statusKoneksi === 'terhubung' ? '● LIVE' : statusKoneksi === 'menghubungkan' ? '○ menyambung' : gagalKoneksi ? '○ login ulang?' : '○ terputus'}
-        </span>
+        </dd>
       </div>
-      <div class="text-[11px] text-slate-400">POS {rupiah(ringkasan.totalPenjualan)} − cek {rupiah(ringkasan.totalCek)}</div>
-    </div>
-  </div>
+      <div class="py-3 sm:py-4 sm:px-6">
+        <dt class="text-[13px] text-ink2">Belum diinput (POS)</dt>
+        <dd class="mt-1.5">
+          <div class="font-mono text-[17px] {ringkasan.penjualanTanpaCek.length > 0 ? 'text-bad' : 'text-ink'}">
+            {ringkasan.penjualanTanpaCek.length} order
+          </div>
+          <div class="mt-1 font-mono text-[12px] text-muted">{rupiah(nilaiTanpaCek)}</div>
+          <div class="mt-0.5 text-[12px] text-muted">pesanan tanpa cek</div>
+        </dd>
+      </div>
+      <div class="py-3 sm:py-4 sm:pl-6">
+        <dt class="text-[13px] text-ink2">Beda cara bayar</dt>
+        <dd class="mt-1.5">
+          <div class="font-mono text-[17px] {jmlBedaBayar > 0 ? 'text-bad' : 'text-ink'}">{jmlBedaBayar} cek</div>
+          <div class="mt-1 text-[12px] text-muted">cek kasir ≠ input Ollsera</div>
+        </dd>
+      </div>
+    </dl>
+  </section>
 
-  <!-- 2. BARIS INPUT KASIR (LEBAR INPUT +20%, KETERANGAN PELUNASAN PERMANEN SEJAJAR) -->
-  <div class="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs">
-    <div class="flex flex-wrap items-center gap-3">
-      <!-- INPUT CEK (Lebar +20%: w-36) -->
-      <div class="flex items-center gap-1.5">
-        <label for="input-cepat" class="text-xs font-bold uppercase text-slate-500">Cek:</label>
+  <!-- INPUT KASIR: tetap di atas saat menggulir (operator mengetik terus) -->
+  <section class="sticky top-0 z-20 space-y-3 rounded-2xl border border-ink/10 bg-card p-5">
+    <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+      <div>
+        <label for="input-cepat" class="mb-1.5 flex items-baseline gap-2 text-[12px] text-muted">
+          Cek <span class="text-[11px] text-muted/80">nominal · kode · tipe</span>
+        </label>
         <input
           id="input-cepat"
           bind:this={inputCepatEl}
@@ -951,13 +1017,14 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="25m1"
-          class="h-8 w-36 rounded-md border border-slate-300 bg-slate-50 px-2.5 text-base font-mono font-bold tracking-wide focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none transition-colors"
+          class="h-10 w-40 rounded-lg border border-ink/15 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
         />
       </div>
 
-      <!-- INPUT BAYAR (Lebar +20%: w-32, onfocus memicu flashing target cek) -->
-      <div class="flex items-center gap-1.5">
-        <label for="input-bayar" class="text-xs font-bold uppercase text-slate-500">Bayar:</label>
+      <div>
+        <label for="input-bayar" class="mb-1.5 flex items-baseline gap-2 text-[12px] text-muted">
+          Bayar <span class="text-[11px] text-muted/80">ribuan</span>
+        </label>
         <input
           id="input-bayar"
           bind:this={inputBayarEl}
@@ -974,46 +1041,50 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="50"
-          class="h-8 w-32 rounded-md border border-slate-300 bg-slate-50 px-2.5 text-base font-mono font-bold tracking-wide focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-600 outline-none transition-colors"
+          class="h-10 w-36 rounded-lg border border-ink/15 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
         />
       </div>
 
-      <!-- KETERANGAN: tiga info TERPISAH supaya tidak saling menghilangkan.
-           Pelunasan tetap tampil walau kasir sudah mulai mengetik cek berikutnya. -->
-      <div class="flex-1 flex flex-col items-start gap-1 min-w-0">
+      <!-- Tiga keterangan TERPISAH supaya tidak saling menghilangkan -->
+      <div class="min-w-[16rem] flex-1 space-y-1.5">
         {#if pesanPelunasan}
-          <div class="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
-            <span class="font-bold">✓ LUNAS:</span>
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-ok/30 bg-ok/8 px-2.5 py-1.5 text-[12px] text-ink2">
+            <Check size={14} strokeWidth={2} class="shrink-0 text-ok" />
+            <span class="font-medium text-ink">Lunas</span>
             <span>{pesanPelunasan.sales} {rupiah(pesanPelunasan.nominal)}</span>
-            <span class="text-slate-300">|</span>
-            <span>Bayar {rupiah(pesanPelunasan.bayar)}</span>
-            <span class="text-slate-300">|</span>
-            <span class="font-bold text-emerald-700">Kembali {rupiah(pesanPelunasan.kembali)}</span>
+            <span class="text-ink/20">·</span>
+            <span>bayar {rupiah(pesanPelunasan.bayar)}</span>
+            <span class="text-ink/20">·</span>
+            <span>kembali <span class="font-mono text-ok">{rupiah(pesanPelunasan.kembali)}</span></span>
             <button
               type="button"
               data-ui="tutupPelunasan"
               onclick={tutupPelunasan}
               title="Tutup keterangan pelunasan"
-              class="ml-1 px-1.5 rounded border border-emerald-300 bg-white text-emerald-700 font-bold"
+              class="ml-auto rounded p-0.5 text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
-              ✕
+              <X size={14} strokeWidth={1.5} />
             </button>
           </div>
         {/if}
 
         {#if pesanGalat}
-          <div class="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md">
-            {pesanGalat}
+          <div class="flex items-start gap-2 rounded-lg border border-bad/30 bg-bad/8 px-2.5 py-1.5 text-[12px] text-ink2">
+            <TriangleAlert size={14} strokeWidth={1.5} class="mt-0.5 shrink-0 text-bad" />
+            <span>{pesanGalat}</span>
           </div>
         {/if}
 
         {#if targetBayar}
-          <div class="text-xs text-slate-600 font-medium">
-            Target: <b class="text-slate-800">{targetBayar.salesmanNama}</b>
-            (Sisa: <b class="text-emerald-700">{rupiah(sisaTargetBayar)}</b>)
+          <div class="text-[12px] text-ink2">
+            Target <span class="font-medium text-ink">{targetBayar.salesmanNama}</span>
+            · sisa <span class="font-mono text-ink">{rupiah(sisaTargetBayar)}</span>
           </div>
         {:else if !pesanPelunasan}
-          <div class="text-xs text-slate-400">Semua cek lunas</div>
+          <div class="flex items-center gap-2 text-[12px] text-muted">
+            <Check size={14} strokeWidth={1.5} class="shrink-0 text-ok" />
+            Semua cek hari ini lunas
+          </div>
         {/if}
       </div>
     </div>
@@ -1021,46 +1092,57 @@
     <!-- PRATINJAU TAFSIR INPUT (pencegahan salah tafsir sebelum Enter) -->
     {#if pratinjauCek.jenis !== 'kosong'}
       <div
-        class="mt-1.5 text-[11px] font-semibold px-2 py-1 rounded-md border {pratinjauCek.jenis === 'siap'
-          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+        class="flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12px] {pratinjauCek.jenis === 'siap'
+          ? 'border-ok/30 bg-ok/8 text-ink2'
           : pratinjauCek.jenis === 'sebagian'
-            ? 'bg-slate-50 border-slate-200 text-slate-600'
-            : 'bg-rose-50 border-rose-200 text-rose-700'}"
+            ? 'border-ink/10 bg-raised/60 text-ink2'
+            : 'border-bad/30 bg-bad/8 text-ink2'}"
       >
-        {#if pratinjauCek.jenis === 'siap'}✓ {/if}{pratinjauCek.teks}
+        {#if pratinjauCek.jenis === 'siap'}
+          <Check size={14} strokeWidth={2} class="shrink-0 text-ok" />
+          {#if pratinjauCek.kode}
+            <span class="rounded border border-ink/15 bg-card px-1.5 py-0.5 font-mono text-[11px] text-ink">{pratinjauCek.kode}</span>
+          {/if}
+        {:else if pratinjauCek.jenis === 'salah'}
+          <TriangleAlert size={14} strokeWidth={1.5} class="shrink-0 text-bad" />
+        {/if}
+        <span>{pratinjauCek.teks}</span>
       </div>
     {/if}
 
-    <!-- PAPAN KETUK SALESMAN: kode ↔ nama (hafalan B/C/V sering keliru) -->
-    <div class="mt-1.5 flex items-center gap-1.5 flex-wrap">
-      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Salesman</span>
+    <!-- PAPAN KETUK SALESMAN: kode ketuk ↔ nama (hafalan B/C/V sering keliru) -->
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-[12px] text-muted">Penjual</span>
       {#each daftarSalesmanAktif as s (s.kode + s.nama)}
         <button
           type="button"
           data-ui="pilihSalesman"
           onclick={() => pilihSalesman(s.kode)}
-          class="px-2 py-0.5 rounded-md text-[11px] font-bold border transition-colors {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama
-            ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}"
+          class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama
+            ? 'border-accent bg-accent text-white'
+            : 'border-ink/15 bg-card text-ink2 hover:bg-raised'}"
           title="Isi kolom Cek dengan kode {s.kode.toUpperCase()} untuk {s.nama}"
         >
-          {s.kode.toUpperCase()} · {s.nama}
+          <span class="font-mono text-[11px] {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama ? 'text-white/70' : 'text-muted'}">{s.kode.toUpperCase()}</span>
+          <span>{s.nama}</span>
         </button>
       {/each}
     </div>
-  </div>
+  </section>
 
-  <!-- 2b. ANTREAN HP: cek yang belum terkirim (internet putus) -->
+  <!-- ANTREAN HP: cek yang belum terkirim (internet putus) -->
   <AntreanCek daftar={antrean.daftar} kirim={() => kirimAntrean()} buang={(ref) => antreBuang(ref)} />
 
-  <!-- 3. NAVIGATION TABS & FILTER -->
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
-    <div class="flex gap-2">
+  <!-- TAB & SARING -->
+  <div class="flex flex-col gap-3 border-b border-ink/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-1">
       <button
         onclick={() => { tabAktif = 'cek'; }}
-        class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {tabAktif === 'cek' ? 'bg-raised text-ink' : 'text-ink2 hover:bg-raised/60'}"
       >
-        📋 Daftar Cek ({daftarCek.length})
+        <ListChecks size={15} strokeWidth={1.5} class={tabAktif === 'cek' ? 'text-accent' : 'text-muted'} />
+        Daftar cek
+        <span class="font-mono text-[12px] text-muted">{daftarCek.length}</span>
       </button>
       {#if jmlCekLama > 0}
         <button
@@ -1068,90 +1150,98 @@
           data-ui="bersihkanCekLama"
           onclick={bersihkanCekLama}
           title="Cek hanya dipakai pada hari itu — baris hari lama dibersihkan otomatis pukul 08:00 WIT"
-          class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+          class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-ink2 transition-colors hover:bg-raised/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         >
-          🧹 Cek lama ({jmlCekLama})
+          <Eraser size={15} strokeWidth={1.5} class="text-muted" />
+          Cek lama
+          <span class="font-mono text-[12px] text-muted">{jmlCekLama}</span>
         </button>
       {/if}
       {#if ringkasan.penjualanTanpaCek.length > 0}
         <button
           onclick={() => { tabAktif = 'tanpa_cek'; }}
-          class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors {tabAktif === 'tanpa_cek' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}"
+          class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {tabAktif === 'tanpa_cek' ? 'bg-raised text-ink' : 'text-ink2 hover:bg-raised/60'}"
         >
-          ⚠️ Penjualan Tanpa Cek ({ringkasan.penjualanTanpaCek.length})
+          <TriangleAlert size={15} strokeWidth={1.5} class="text-bad" />
+          Penjualan tanpa cek
+          <span class="font-mono text-[12px] text-muted">{ringkasan.penjualanTanpaCek.length}</span>
         </button>
       {/if}
     </div>
 
     {#if tabAktif === 'cek'}
-      <div class="flex gap-1.5 w-full sm:w-auto overflow-x-auto">
-        {#each ([['semua', 'Semua'], ['belum_input', 'Belum Input'], ['beda_bayar', `Beda Bayar${jmlBedaBayar ? ' (' + jmlBedaBayar + ')' : ''}`], ['kurang_bayar', 'Kurang Bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
-          <button
-            type="button"
-            onclick={() => { filterStatus = v; }}
-            class="px-2.5 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-colors {filterStatus === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600'}"
-          >
-            {label}
-          </button>
-        {/each}
-        <input
-          bind:value={cariTeks}
-          placeholder="Cari salesman / order..."
-          class="text-xs bg-white border border-slate-200 rounded-md px-2.5 py-1 outline-none flex-1 sm:w-44"
-        />
+      <div class="flex items-center gap-2">
+        <div class="inline-flex items-center rounded-lg border border-ink/10 bg-card p-0.5">
+          {#each ([['semua', 'Semua'], ['belum_input', 'Belum input'], ['beda_bayar', `Beda bayar${jmlBedaBayar ? ' · ' + jmlBedaBayar : ''}`], ['kurang_bayar', 'Kurang bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
+            <button
+              type="button"
+              onclick={() => { filterStatus = v; }}
+              class="whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {filterStatus === v ? 'bg-raised text-ink' : 'text-ink2 hover:bg-raised/60'}"
+            >
+              {label}
+            </button>
+          {/each}
+        </div>
+        <div class="relative">
+          <Search size={14} strokeWidth={1.5} class="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
+          <input
+            bind:value={cariTeks}
+            placeholder="Cari"
+            class="h-9 w-40 rounded-lg border border-ink/15 bg-card pl-8 pr-2.5 text-[13px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25"
+          />
+        </div>
       </div>
     {/if}
   </div>
-  </div><!-- /sticky wrapper -->
 
-  <!-- CONTENT TAB 1: DAFTAR CEK (KOLOM STATUS DIHAPUS, ADA KREDIT?, KLIK 2x EDIT, FLASH SAAT BAYAR FOKUS) -->
+  <!-- TAB 1: DAFTAR CEK -->
   {#if tabAktif === 'cek'}
-    <div class="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+    <div class="overflow-hidden rounded-2xl border border-ink/10 bg-card">
       {#if cekTersaring.length === 0}
-        <div class="p-8 text-center text-slate-400 text-xs">
-          Belum ada deklarasi cek kasir untuk hari ini.
+        <div class="px-6 py-10 text-center text-[13px] text-muted">
+          Belum ada deklarasi cek kasir untuk hari ini
         </div>
       {:else}
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0 z-10">
+          <table class="w-full text-left text-[13px]">
+            <thead class="border-b border-ink/10 text-[12px] text-muted">
               <tr>
-                <th class="p-2.5">Jam</th>
-                <th class="p-2.5">Salesman</th>
-                <th class="p-2.5 text-right">Nominal</th>
-                <th class="p-2.5 text-right">Dibayar</th>
-                <th class="p-2.5 text-right">Kembalian</th>
-                <th class="p-2.5">Tipe</th>
-                <th class="p-2.5 text-center">Kredit?</th>
-                <th class="p-2.5">Pasangan POS</th>
-                <th class="p-2.5 text-center">Aksi</th>
+                <th class="px-3 py-2 font-medium">Jam</th>
+                <th class="px-3 py-2 font-medium">Penjual</th>
+                <th class="px-3 py-2 text-right font-medium">Nominal (ribu)</th>
+                <th class="px-3 py-2 text-right font-medium">Dibayar</th>
+                <th class="px-3 py-2 text-right font-medium">Kembalian</th>
+                <th class="px-3 py-2 font-medium">Tipe</th>
+                <th class="px-3 py-2 text-center font-medium">Kredit</th>
+                <th class="px-3 py-2 font-medium">Order POS</th>
+                <th class="px-3 py-2 text-right font-medium">Aksi</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 font-medium">
+            <tbody class="divide-y divide-ink/10">
               {#each cekTersaring as c (c.id)}
                 {@const isTarget = isBayarFocused && targetBayar?.id === c.id}
                 <tr
-                  class="transition-colors {isTarget ? 'animate-flash-target font-semibold' : flashCekId === c.id ? 'bg-emerald-100' : c.kredit ? 'bg-amber-50' : Number(c.dibayar) < Number(c.nominal) ? 'bg-purple-50' : 'hover:bg-slate-50'}"
+                  class="align-top transition-colors {isTarget ? 'bg-accent/5 ring-1 ring-inset ring-accent/30' : flashCekId === c.id ? 'animate-row-in' : 'hover:bg-raised/40'}"
                 >
-                  <td class="p-2.5 font-mono text-slate-600">{c.jam.slice(0, 5)}</td>
+                  <td class="px-3 py-2.5 font-mono text-[12px] text-muted">{c.jam.slice(0, 5)}</td>
 
-                  <!-- 1. SALESMAN (Klik 2x edit -> pilih dari dropdown) -->
+                  <!-- 1. PENJUAL (klik 2x edit -> pilih dari daftar) -->
                   <td
-                    class="p-2.5 cursor-pointer"
+                    class="cursor-pointer px-3 py-2.5"
                     ondblclick={() => mulaiEdit(c, 'salesman')}
-                    title="Klik 2x untuk ubah salesman"
+                    title="Klik 2x untuk ubah penjual"
                   >
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'salesman'}
-                      <span class="font-bold text-blue-700 underline">{c.salesmanNama}</span>
+                      <span class="font-medium text-accent underline">{c.salesmanNama}</span>
                       <!-- Picker bottom-sheet: pengganti dropdown native (tahan semua browser) -->
-                      <div class="fixed inset-0 z-50 bg-slate-900/40" onclick={() => batalEdit()}>
-                        <div class="absolute left-2 right-2 bottom-2 bg-white rounded-xl shadow-2xl p-2 max-h-[70vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
-                          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1.5">Pilih salesman</div>
+                      <div class="fixed inset-0 z-50 bg-ink/40" onclick={() => batalEdit()}>
+                        <div class="absolute left-2 right-2 bottom-2 max-h-[70vh] overflow-y-auto rounded-xl border border-ink/10 bg-card p-2 shadow-xl" onclick={(e) => e.stopPropagation()}>
+                          <div class="px-2 py-1.5 text-[12px] text-muted">Pilih penjual</div>
                           {#each daftarSalesmanAktif as s (s.nama)}
                             <button
                               type="button"
                               onclick={() => { if (selEdit) selEdit.nilai = s.nama; simpanEdit(c); }}
-                              class="w-full text-left px-3 py-3 rounded-lg text-sm font-bold transition-colors {selEdit?.nilai === s.nama ? 'bg-blue-600 text-white' : 'text-slate-900 active:bg-slate-100'}"
+                              class="w-full rounded-lg px-3 py-3 text-left text-[14px] font-medium transition-colors {selEdit?.nilai === s.nama ? 'bg-accent text-white' : 'text-ink hover:bg-raised'}"
                             >
                               {s.nama}
                             </button>
@@ -1159,13 +1249,13 @@
                         </div>
                       </div>
                     {:else}
-                      <span class="font-bold text-slate-900">{c.salesmanNama}</span>
+                      <span class="font-medium text-ink">{c.salesmanNama}</span>
                     {/if}
                   </td>
 
-                  <!-- 2. NOMINAL (Klik 2x edit dalam ribuan) -->
+                  <!-- 2. NOMINAL (klik 2x edit, dalam ribuan) -->
                   <td
-                    class="p-2.5 text-right font-mono font-bold text-slate-900 cursor-pointer"
+                    class="cursor-pointer px-3 py-2.5 text-right font-mono font-medium text-ink"
                     ondblclick={() => mulaiEdit(c, 'nominal')}
                     title="Klik 2x untuk ubah nominal"
                   >
@@ -1180,17 +1270,16 @@
                           else if (e.key === 'Escape') batalEdit();
                         }}
                         onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
-                        class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
+                        class="h-6 w-20 rounded border border-accent bg-card px-1 text-right font-mono text-[12px] text-ink outline-none"
                       />
                     {:else}
                       {formatRibuan(c.nominal)}
-                      <span class="text-[10px] text-slate-400 font-normal ml-0.5">({rupiah(c.nominal)})</span>
                     {/if}
                   </td>
 
-                  <!-- 3. DIBAYAR (Klik 2x edit dalam ribuan) -->
+                  <!-- 3. DIBAYAR (klik 2x edit, dalam ribuan) -->
                   <td
-                    class="p-2.5 text-right font-mono font-semibold cursor-pointer"
+                    class="cursor-pointer px-3 py-2.5 text-right font-mono"
                     ondblclick={() => mulaiEdit(c, 'dibayar')}
                     title="Klik 2x untuk ubah dibayar"
                   >
@@ -1205,78 +1294,80 @@
                           else if (e.key === 'Escape') batalEdit();
                         }}
                         onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
-                        class="h-6 w-20 rounded border border-blue-500 bg-white px-1 text-right text-xs outline-none"
+                        class="h-6 w-20 rounded border border-accent bg-card px-1 text-right font-mono text-[12px] text-ink outline-none"
                       />
                     {:else if c.kredit}
-                      <span class="text-slate-400">Kredit</span>
+                      <span class="text-muted">Kredit</span>
                     {:else if Number(c.dibayar) >= Number(c.nominal)}
-                      <span class="text-emerald-700">{formatRibuan(c.dibayar)}</span>
+                      <span class="font-medium text-ok">{formatRibuan(c.dibayar)}</span>
                     {:else if Number(c.dibayar) > 0}
-                      <span class="text-amber-700">{formatRibuan(c.dibayar)}</span>
+                      <span class="text-ink2">{formatRibuan(c.dibayar)}</span>
                     {:else}
-                      <span class="text-rose-600 font-bold">0</span>
+                      <span class="font-medium text-bad">0</span>
                     {/if}
                   </td>
 
-                  <!-- 3b. KEMBALIAN = dibayar - nominal (0 kalau belum lunas/kredit) -->
-                  <td class="p-2.5 text-right font-mono font-semibold {!c.kredit && Number(c.dibayar) > Number(c.nominal) ? 'text-emerald-700' : 'text-slate-300'}">
+                  <!-- 3b. KEMBALIAN = dibayar - nominal (— kalau belum lunas/kredit) -->
+                  <td class="px-3 py-2.5 text-right font-mono {!c.kredit && Number(c.dibayar) > Number(c.nominal) ? 'text-ok' : 'text-muted'}">
                     {!c.kredit && Number(c.dibayar) > Number(c.nominal) ? formatRibuan(Number(c.dibayar) - Number(c.nominal)) : '—'}
                   </td>
 
-                  <td class="p-2.5">
-                    <span class="px-1.5 py-0.5 rounded text-[11px] font-bold {c.tipe === 'Grosir' ? 'bg-purple-100 text-purple-700' : c.tipe === 'Obral' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">
-                      {c.tipe}
-                    </span>
+                  <td class="px-3 py-2.5 text-[12px] text-ink2">
+                    {c.tipe}
                   </td>
 
-                  <!-- 4. KOLOM KREDIT? (Checkbox langsung simpan, tidak ikut ditunggu di bayar) -->
-                  <td class="p-2.5 text-center">
+                  <!-- 4. KREDIT (checkbox langsung simpan) -->
+                  <td class="px-3 py-2.5 text-center">
                     <input
                       type="checkbox"
                       checked={c.kredit}
                       onchange={(e) => toggleKredit(c, (e.target as HTMLInputElement).checked)}
-                      class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer align-middle"
+                      class="h-4 w-4 cursor-pointer rounded border-ink/25 align-middle accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                       title="Tandai kredit (tidak ikut ditunggu di kotak bayar)"
                     />
                   </td>
 
-                  <!-- 5. PASANGAN POS (termasuk tanda beda cara bayar + bukti gambar) -->
-                  <td class="p-2.5 text-[11px]">
+                  <!-- 5. ORDER POS (termasuk tanda beda cara bayar + bukti gambar) -->
+                  <td class="px-3 py-2.5">
                     {#if c.orderNo}
-                      <div class="font-mono text-slate-900 font-bold">{c.orderNo}</div>
-                      <div class="text-slate-500">{c.customer}</div>
+                      <div class="font-mono text-[12px] text-ink">{c.orderNo}</div>
+                      <div class="mt-0.5 text-[12px] text-muted">{c.customer}</div>
                       {@const beda = bedaBayar(c)}
                       {#if beda}
                         <div
-                          class="mt-1 inline-block px-1.5 py-0.5 rounded border border-rose-300 bg-rose-50 text-rose-700 font-bold"
+                          class="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-bad"
                           title="Kasir dan Ollsera berbeda cara bayar — betulkan di Ollsera"
                         >
-                          ⚠️ cek: {beda.cekKredit ? 'Kredit' : 'Tunai'} · Ollsera: {beda.regKredit ? 'Kredit' : 'Tunai'}
+                          <TriangleAlert size={12} strokeWidth={1.5} />
+                          cek: {beda.cekKredit ? 'Kredit' : 'Tunai'} · POS: {beda.regKredit ? 'Kredit' : 'Tunai'}
                         </div>
                       {/if}
                     {:else}
-                      <span class="text-rose-500 font-semibold">Belum cocok POS</span>
+                      <span class="text-[12px] font-medium text-bad">Belum cocok POS</span>
                     {/if}
                     {#if fotoCek(c).length > 0}
                       <button
                         type="button"
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
-                        class="mt-1 inline-block px-1.5 py-0.5 rounded border font-bold {galeri?.cek?.id === c.id ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 bg-slate-50 text-slate-700'}"
+                        class="mt-1 inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-white' : 'border-ink/15 bg-card text-ink2 hover:bg-raised'}"
                         title="Buka galeri bukti gambar (layar penuh)"
+                        aria-label="Bukti gambar: {fotoCek(c).length} foto"
                       >
-                        📷 {fotoCek(c).length}
+                        <Camera size={13} strokeWidth={1.5} />
+                        <span class="font-mono">{fotoCek(c).length}</span>
                       </button>
                     {/if}
                   </td>
 
-                  <td class="p-2.5 text-center">
+                  <td class="px-3 py-2.5 text-right">
                     <button
                       onclick={() => hapusCek(c.id)}
-                      class="text-[11px] text-rose-600 hover:text-rose-800 font-semibold px-1.5 py-0.5 rounded hover:bg-rose-50"
+                      class="rounded-md p-1 text-ink2 transition-colors hover:bg-bad/8 hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                       title="Hapus baris cek"
+                      aria-label="Hapus baris cek"
                     >
-                      Hapus
+                      <Trash size={15} strokeWidth={1.5} />
                     </button>
                   </td>
                 </tr>
@@ -1293,16 +1384,19 @@
   {#if galeri}
     {@const gambar = fotoCek(galeri.cek)}
     <div
-      class="fixed inset-0 z-[80] bg-slate-900/95 flex flex-col"
+      class="fixed inset-0 z-[80] flex flex-col bg-ink"
       role="dialog"
       aria-modal="true"
       aria-label="Galeri bukti cek"
     >
       <!-- KEPALA -->
-      <div class="flex items-center justify-between gap-2 px-4 py-3 bg-slate-900 text-white shrink-0">
+      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-paper">
         <div class="min-w-0">
-          <div class="text-sm font-bold truncate">📷 Bukti cek · {galeri.cek.salesmanNama}</div>
-          <div class="text-[11px] text-slate-300">
+          <div class="flex items-center gap-2 text-[14px] font-medium">
+            <Camera size={15} strokeWidth={1.5} class="shrink-0 text-white/60" />
+            <span class="truncate">Bukti cek · {galeri.cek.salesmanNama}</span>
+          </div>
+          <div class="mt-0.5 font-mono text-[12px] text-white/60">
             {rupiah(Number(galeri.cek.nominal))} · {galeri.cek.jam.slice(0, 5)} · {gambar.length} gambar
           </div>
         </div>
@@ -1310,34 +1404,36 @@
           type="button"
           data-ui="tutupGaleri"
           onclick={tutupGaleri}
-          class="shrink-0 px-3 py-2 rounded-lg bg-white text-slate-900 text-xs font-bold"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium text-paper transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           title="Tutup galeri (Esc)"
         >
-          ✕ Tutup (Esc)
+          <X size={14} strokeWidth={1.5} />
+          Tutup
+          <span class="font-mono text-white/50">Esc</span>
         </button>
       </div>
 
       <!-- PRATINJAU: gambar yang sedang disorot kursor -->
       {#if sorot !== null && gambar[sorot]}
-        <div class="flex-1 min-h-0 flex items-center justify-center p-3">
+        <div class="flex min-h-0 flex-1 items-center justify-center p-3">
           <img
             src={gambar[sorot].url}
             alt={gambar[sorot].filename ?? 'bukti cek'}
-            class="max-h-full max-w-full object-contain rounded-lg"
+            class="max-h-full max-w-full rounded-lg object-contain"
             loading="lazy"
           />
         </div>
       {:else}
-        <div class="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 text-xs gap-1">
-          <span class="text-2xl">🖼️</span>
+        <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-[13px] text-white/60">
+          <Image size={22} strokeWidth={1.5} />
           <span>Klik gambar kecil untuk melihat ukuran besar</span>
-          <span class="text-slate-500">arahkan kursor ke gambar kecil untuk pratinjau</span>
+          <span class="text-white/40">arahkan kursor ke gambar kecil untuk pratinjau</span>
         </div>
       {/if}
 
       <!-- SEMUA GAMBAR KECIL -->
-      <div class="shrink-0 max-h-[40vh] overflow-y-auto px-3 pt-1 pb-3 bg-slate-900">
-        <div class="flex flex-wrap gap-2 justify-center">
+      <div class="max-h-[40vh] shrink-0 overflow-y-auto border-t border-white/10 px-3 py-3">
+        <div class="flex flex-wrap justify-center gap-2">
           {#each gambar as g, i (g.url)}
             <button
               type="button"
@@ -1347,10 +1443,10 @@
               onmouseleave={() => (sorot = null)}
               onfocus={() => (sorot = i)}
               onblur={() => (sorot = null)}
-              class="rounded-lg border-2 p-0.5 bg-slate-800 {sorot === i || galeri.idx === i ? 'border-blue-400' : 'border-slate-700'}"
+              class="rounded-lg border-2 p-0.5 transition-colors {sorot === i || galeri.idx === i ? 'border-accent' : 'border-white/10'}"
               title="Gambar {i + 1} dari {gambar.length} — klik untuk melihat besar"
             >
-              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-20 w-20 object-cover rounded" loading="lazy" />
+              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-20 w-20 rounded object-cover" loading="lazy" />
             </button>
           {/each}
         </div>
@@ -1359,28 +1455,30 @@
 
     <!-- GAMBAR BESAR: dibuka DI HALAMAN INI (bukan window/tab baru) -->
     {#if besar && gambar[galeri.idx]}
-      <div class="fixed inset-0 z-[90] bg-black/95 flex flex-col" onclick={tutupBesar} role="presentation">
-        <div class="shrink-0 flex items-center justify-between gap-2 px-4 py-2 text-white" onclick={(e) => e.stopPropagation()}>
-          <span class="text-xs font-mono">{galeri.idx + 1} / {gambar.length}</span>
+      <div class="fixed inset-0 z-[90] flex flex-col bg-black" onclick={tutupBesar} role="presentation">
+        <div class="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-paper" onclick={(e) => e.stopPropagation()}>
+          <span class="font-mono text-[12px] text-white/60">{galeri.idx + 1} / {gambar.length}</span>
           <div class="flex items-center gap-1.5">
-            <button type="button" onclick={() => geserGaleri(-1)} class="px-3 py-2 rounded-lg bg-slate-700 text-white text-xs font-bold">
-              ‹ Sebelumnya
+            <button type="button" onclick={() => geserGaleri(-1)} class="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium transition-colors hover:bg-white/10">
+              <ChevronLeft size={14} strokeWidth={1.5} />
+              Sebelumnya
             </button>
-            <button type="button" onclick={() => geserGaleri(1)} class="px-3 py-2 rounded-lg bg-slate-700 text-white text-xs font-bold">
-              Berikutnya ›
+            <button type="button" onclick={() => geserGaleri(1)} class="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium transition-colors hover:bg-white/10">
+              Berikutnya
+              <ChevronRight size={14} strokeWidth={1.5} />
             </button>
             <button
               type="button"
               data-ui="tutupBesar"
               onclick={tutupBesar}
-              class="px-3 py-2 rounded-lg bg-white text-slate-900 text-xs font-bold"
+              class="rounded-lg border border-white/15 p-2 transition-colors hover:bg-white/10"
               title="Kembali ke daftar gambar (Esc)"
             >
-              ✕
+              <X size={14} strokeWidth={1.5} />
             </button>
           </div>
         </div>
-        <div class="flex-1 min-h-0 flex items-center justify-center p-2" onclick={(e) => e.stopPropagation()}>
+        <div class="flex min-h-0 flex-1 items-center justify-center p-2" onclick={(e) => e.stopPropagation()}>
           <img
             src={gambar[galeri.idx].url}
             alt={gambar[galeri.idx].filename ?? 'bukti cek'}
@@ -1391,38 +1489,39 @@
     {/if}
   {/if}
 
-  <!-- CONTENT TAB 2: PENJUALAN TANPA CEK -->
+  <!-- TAB 2: PENJUALAN TANPA CEK -->
   {#if tabAktif === 'tanpa_cek'}
-    <div class="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+    <div class="overflow-hidden rounded-2xl border border-ink/10 bg-card">
       {#if ringkasan.penjualanTanpaCek.length === 0}
-        <div class="p-8 text-center text-emerald-600 font-bold text-xs">
-          ✓ Semua transaksi register POS telah memiliki pasangan cek kasir!
+        <div class="flex items-center justify-center gap-2 px-6 py-10 text-[13px] text-ok">
+          <Check size={15} strokeWidth={2} />
+          Semua transaksi register POS sudah punya pasangan cek kasir
         </div>
       {:else}
-        <div class="p-3 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-900">
-          Transaksi berikut tercatat di Register POS Ollsera tetapi belum dideklarasikan oleh kasir.
+        <div class="border-b border-ink/10 bg-bad/8 px-3 py-2.5 text-[12px] text-ink2">
+          Transaksi berikut tercatat di register POS Ollsera tetapi belum dideklarasikan oleh kasir
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
+          <table class="w-full text-left text-[13px]">
+            <thead class="border-b border-ink/10 text-[12px] text-muted">
               <tr>
-                <th class="p-2.5">Waktu</th>
-                <th class="p-2.5">Order No</th>
-                <th class="p-2.5">Customer</th>
-                <th class="p-2.5">Pembayaran</th>
-                <th class="p-2.5 text-right">Total POS</th>
-                <th class="p-2.5">Kasir POS</th>
+                <th class="px-3 py-2 font-medium">Waktu</th>
+                <th class="px-3 py-2 font-medium">Order</th>
+                <th class="px-3 py-2 font-medium">Pelanggan</th>
+                <th class="px-3 py-2 font-medium">Pembayaran</th>
+                <th class="px-3 py-2 text-right font-medium">Total POS</th>
+                <th class="px-3 py-2 font-medium">Kasir POS</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 font-medium">
+            <tbody class="divide-y divide-ink/10">
               {#each ringkasan.penjualanTanpaCek as p (p.orderNo)}
-                <tr class="hover:bg-slate-50">
-                  <td class="p-2.5 font-mono text-slate-600">{p.orderTime || '-'}</td>
-                  <td class="p-2.5 font-mono font-bold text-blue-700">{p.orderNo}</td>
-                  <td class="p-2.5 text-slate-900">{p.customerName || '1Ecer'}</td>
-                  <td class="p-2.5 text-slate-600">{p.paymentType || 'Tunai'}</td>
-                  <td class="p-2.5 text-right font-mono font-bold text-slate-900">{rupiah(p.total)}</td>
-                  <td class="p-2.5 text-slate-500">{p.cashierName || '-'}</td>
+                <tr class="transition-colors hover:bg-raised/40">
+                  <td class="px-3 py-2.5 font-mono text-[12px] text-muted">{p.orderTime || '—'}</td>
+                  <td class="px-3 py-2.5 font-mono text-[12px] text-ink">{p.orderNo}</td>
+                  <td class="px-3 py-2.5 text-ink">{p.customerName || '1Ecer'}</td>
+                  <td class="px-3 py-2.5 text-ink2">{p.paymentType || 'Tunai'}</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-ink">{rupiah(p.total)}</td>
+                  <td class="px-3 py-2.5 text-ink2">{p.cashierName || '—'}</td>
                 </tr>
               {/each}
             </tbody>
@@ -1436,23 +1535,23 @@
 {/if}
 
 {#if dialog}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" data-ui="dialog">
-    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-4">
-      <p class="text-sm text-slate-800 whitespace-pre-line">{dialog.teks}</p>
-      <div class="mt-4 flex justify-end gap-2">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" data-ui="dialog">
+    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-5 shadow-xl">
+      <p class="whitespace-pre-line text-[13px] leading-5 text-ink">{dialog.teks}</p>
+      <div class="mt-5 flex justify-end gap-2">
         {#if !dialog.hanyaOk}
           <button
             type="button"
             data-ui="dialogBatal"
             onclick={() => dialog?.jawab?.(false)}
-            class="px-3 py-1.5 text-xs font-bold rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+            class="rounded-lg border border-ink/15 bg-raised px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >Batal</button>
         {/if}
         <button
           type="button"
           data-ui="dialogYa"
           onclick={() => dialog?.jawab?.(true)}
-          class="px-3 py-1.5 text-xs font-bold rounded-md bg-slate-900 text-white hover:bg-slate-800"
+          class="rounded-lg bg-ink px-3.5 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         >{dialog.hanyaOk ? 'OK' : 'Ya'}</button>
       </div>
     </div>
@@ -1460,18 +1559,18 @@
 {/if}
 
 <style>
-  @keyframes flash-cell-yellow {
-    0%, 100% {
-      background-color: rgb(254 240 138); /* bg-yellow-200 */
-      box-shadow: inset 0 0 0 2px rgb(234 179 8);
+  /* Sorot baris baru: SEKALI (dulu animate-pulse infinite pada hal yang tidak
+     live — denyut tak berhenti di layar kasir). */
+  @keyframes row-in {
+    from {
+      background-color: color-mix(in oklab, var(--color-accent) 16%, transparent);
     }
-    50% {
-      background-color: rgb(253 224 71); /* bg-yellow-300 */
-      box-shadow: inset 0 0 0 2px rgb(202 138 4);
+    to {
+      background-color: transparent;
     }
   }
 
-  .animate-flash-target {
-    animation: flash-cell-yellow 0.8s ease-in-out infinite !important;
+  .animate-row-in {
+    animation: row-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) 1;
   }
 </style>

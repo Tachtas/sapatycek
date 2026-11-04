@@ -1,7 +1,25 @@
 @import "tailwindcss";
 
+/* Arah: buku kas toko. Netral hangat (kertas), tinta, satu aksen bara.
+   Ramp, kontras, dan radius mengikuti unslop/tokens.md. */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-paper: #f7f4ee; /* halaman */
+  --color-card: #fdfbf7; /* kartu */
+  --color-raised: #efe9df; /* input, baris aktif */
+  --color-ink: #1f1b16; /* teks utama (15.6:1 di paper) */
+  --color-ink2: #5e554a; /* teks sekunder (6.7:1) */
+  --color-muted: #6d6457; /* meta saja (5.3:1) */
+  --color-accent: #a83f10; /* bara/tinta (5.7:1, putih di atasnya 6.2:1) */
+  --color-ok: #15803d;
+  --color-bad: #b3261e;
+}
+
 @layer base {
   body {
     @apply antialiased;
+    font-variant-numeric: tabular-nums;
   }
 }
