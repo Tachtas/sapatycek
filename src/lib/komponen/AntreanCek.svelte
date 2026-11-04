@@ -31,7 +31,7 @@
         Kirim sekarang
       </button>
     </div>
-    <div class="divide-y divide-ink/10 border-t border-ink/10">
+    <div class="divide-y divide-line border-t border-line">
       {#each daftar as e (e.ref)}
         <div class="flex items-center justify-between gap-3 py-1.5">
           <span class="font-mono text-[12px] text-ink2">

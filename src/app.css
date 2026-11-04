@@ -13,8 +13,18 @@
   --color-ink2: #5e554a; /* teks sekunder (6.7:1) */
   --color-muted: #6d6457; /* meta saja (5.3:1) */
   --color-accent: #a83f10; /* bara/tinta (5.7:1, putih di atasnya 6.2:1) */
+  --color-onaccent: #ffffff;
   --color-ok: #15803d;
   --color-bad: #b3261e;
+
+  /* Garis: hairline & batas kontrol. Per tema, karena tinta 10% di atas
+     permukaan gelap nyaris tak terlihat (kartu jadi saling melebur). */
+  --color-line: #e7e5e1;
+  --color-line2: #d5d3ce;
+
+  /* Sisa tetap — TIDAK ikut tema: tirai gelap untuk overlay & teks di atasnya */
+  --color-scrim: #16130f;
+  --color-kertas: #f7f4ee;
 }
 
 @layer base {
@@ -22,4 +32,58 @@
     @apply antialiased;
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* ---------------------------- Tema ----------------------------
+   Setiap utility Tailwind memakai var(--color-*), jadi satu blok di sini
+   mengganti SELURUH palet tanpa menyentuh satu kelas pun di markup.
+   Blok ini sengaja di LUAR @layer: CSS tanpa layer menang atas :root bawaan
+   Tailwind (yang berada di @layer theme), jadi tidak perlu perang spesifisitas.
+   Tema "kas" = nilai bawaan di atas, tidak perlu ditulis ulang. */
+
+[data-tema='arang'] {
+  color-scheme: dark;
+  --color-paper: #16140f;
+  --color-card: #1c1a15;
+  --color-raised: #26231c;
+  --color-ink: #f0e9dd;
+  --color-ink2: #b0a798;
+  --color-muted: #9a9182;
+  --color-accent: #d98a55;
+  --color-onaccent: #1b1712;
+  --color-ok: #4cc38a;
+  --color-bad: #f0666a;
+  --color-line: #35322c;
+  --color-line2: #4a4741;
+}
+
+[data-tema='arsip'] {
+  --color-paper: #f4f6f9;
+  --color-card: #ffffff;
+  --color-raised: #e9edf3;
+  --color-ink: #101828;
+  --color-ink2: #475467;
+  --color-muted: #667085;
+  --color-accent: #1d4f91;
+  --color-onaccent: #ffffff;
+  --color-ok: #15803d;
+  --color-bad: #b3261e;
+  --color-line: #e7e8ea;
+  --color-line2: #d4d5d8;
+}
+
+[data-tema='malam-arsip'] {
+  color-scheme: dark;
+  --color-paper: #0c0f16;
+  --color-card: #131822;
+  --color-raised: #1c2331;
+  --color-ink: #eef1f6;
+  --color-ink2: #a6adbd;
+  --color-muted: #8f97a8;
+  --color-accent: #7fabdd;
+  --color-onaccent: #0b0e14;
+  --color-ok: #4cc38a;
+  --color-bad: #e5484d;
+  --color-line: #2d323b;
+  --color-line2: #434750;
 }

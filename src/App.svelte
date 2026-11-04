@@ -12,6 +12,7 @@
     X,
     Check,
     Search,
+    Palette,
     Trash,
     ChevronLeft,
     ChevronRight,
@@ -107,6 +108,40 @@
   let sorot = $state<number | null>(null); // thumbnail yang sedang di-hover (pratinjau)
   let besar = $state(false); // gambar besar dibuka DI HALAMAN (bukan window baru)
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
+
+  // ---- Tema ---------------------------------------------------------------
+  // Paletnya hidup di app.css sebagai blok [data-tema='…'] yang menimpa
+  // var(--color-*); di sini hanya perlu menempelkan nama tema ke <html>.
+  const TEMA = [
+    { id: 'kas', nama: 'Buku kas' },
+    { id: 'arang', nama: 'Malam arang' },
+    { id: 'arsip', nama: 'Arsip biru' },
+    { id: 'malam-arsip', nama: 'Malam arsip' },
+  ] as const;
+  const KUNCI_TEMA = 'cek-tema';
+
+  function bacaTema(): string {
+    try {
+      const t = localStorage.getItem(KUNCI_TEMA) ?? '';
+      if (TEMA.some((x) => x.id === t)) return t;
+    } catch {}
+    return 'kas';
+  }
+
+  let tema = $state(bacaTema());
+  let menuTema = $state(false);
+  const temaAktif = $derived(TEMA.find((t) => t.id === tema) ?? TEMA[0]);
+
+  $effect(() => {
+    document.documentElement.dataset.tema = tema;
+  });
+
+  function pilihTema(id: string) {
+    tema = id;
+    try { localStorage.setItem(KUNCI_TEMA, id); } catch {}
+    menuTema = false;
+    inputCepatEl?.focus();
+  }
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
   $effect(() => {
@@ -873,7 +908,7 @@
 <!-- Kelas bersama: permukaan dasar + cincin fokus keyboard -->
 {#if sesi.status === 'belum_login'}
   <div class="min-h-screen flex items-center justify-center p-6">
-    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+    <div class="w-full max-w-sm rounded-xl border border-line bg-card p-6">
       <Lock size={20} strokeWidth={1.5} class="text-muted" />
       <div class="mt-4 text-[17px] font-semibold text-ink">Sapaty Cek</div>
       <p class="mt-1 text-[13px] leading-5 text-ink2">
@@ -890,7 +925,7 @@
   </div>
 {:else if sesi.status === 'kedaluwarsa'}
   <div class="min-h-screen flex items-center justify-center p-6">
-    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+    <div class="w-full max-w-sm rounded-xl border border-line bg-card p-6">
       <Hourglass size={20} strokeWidth={1.5} class="text-accent" />
       <div class="mt-4 text-[17px] font-semibold text-ink">Sesi login habis</div>
       <p class="mt-1 text-[13px] leading-5 text-ink2">
@@ -909,7 +944,7 @@
   </div>
 {:else if sesi.status === 'ditolak'}
   <div class="min-h-screen flex items-center justify-center p-6">
-    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-6">
+    <div class="w-full max-w-sm rounded-xl border border-line bg-card p-6">
       <Ban size={20} strokeWidth={1.5} class="text-bad" />
       <div class="mt-4 text-[17px] font-semibold text-ink">Akses ditolak</div>
       <p class="mt-1 text-[13px] leading-5 text-ink2">
@@ -918,7 +953,7 @@
       <button
         type="button"
         onclick={() => logout()}
-        class="mt-5 h-11 w-full rounded-lg border border-ink/15 bg-raised text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        class="mt-5 h-11 w-full rounded-lg border border-line2 bg-raised text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Ganti akun
       </button>
@@ -927,7 +962,7 @@
 {:else}
 <div class="mx-auto max-w-6xl px-6 py-6 space-y-5">
   <!-- KEPALA: nama, outlet, PERIODE (rekonsiliasi selalu per hari), status -->
-  <header class="flex flex-wrap items-end justify-between gap-4 border-b border-ink/10 pb-4">
+  <header class="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
     <div>
       <div class="flex items-baseline gap-2">
         <span class="text-[17px] font-semibold tracking-tight text-ink">Sapaty Cek</span>
@@ -939,21 +974,56 @@
         <span class="font-mono text-muted">{judulTanggal}</span>
       </div>
     </div>
-    <div class="flex items-center gap-2 text-[12px] text-ink2">
-      <span class="h-1.5 w-1.5 rounded-full {statusNada}"></span>
-      <span>{statusTeks}</span>
+    <div class="flex items-center gap-3">
+      <!-- Ganti tema: menempelkan data-tema ke <html>, pilihan disimpan di perangkat -->
+      <div class="relative">
+        <button
+          type="button"
+          data-ui="gantiTema"
+          onclick={() => (menuTema = !menuTema)}
+          aria-haspopup="menu"
+          aria-expanded={menuTema}
+          title="Ganti tema"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-line2 bg-card px-2.5 py-1.5 text-[12px] font-medium text-ink2 transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
+          <Palette size={14} strokeWidth={1.5} class="text-muted" />
+          {temaAktif.nama}
+        </button>
+        {#if menuTema}
+          <div class="fixed inset-0 z-30" onclick={() => (menuTema = false)} role="presentation"></div>
+          <div class="absolute top-full right-0 z-40 mt-1 w-44 rounded-lg border border-line bg-card p-1 shadow-xl" role="menu">
+            {#each TEMA as t (t.id)}
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={tema === t.id}
+                onclick={() => pilihTema(t.id)}
+                class="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {tema === t.id ? 'bg-raised text-ink' : 'text-ink2 hover:bg-raised/60'}"
+              >
+                <span>{t.nama}</span>
+                {#if tema === t.id}<Check size={13} strokeWidth={2} class="text-accent" />{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="flex items-center gap-2 text-[12px] text-ink2">
+        <span class="h-1.5 w-1.5 rounded-full {statusNada}"></span>
+        <span>{statusTeks}</span>
+      </div>
     </div>
   </header>
 
   <!-- SALDO HARI: satu momen yang membawa angka besar, lalu tiga angka ringkas -->
-  <section class="rounded-2xl border border-ink/10 bg-card p-6">
+  <section class="rounded-2xl border border-line bg-card p-6">
     <h2 class="text-[13px] font-medium text-muted">Saldo hari</h2>
 
     <div class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[15px] text-ink2">
       <span class="whitespace-nowrap">Penjualan POS {rupiah(ringkasan.totalPenjualan)}</span>
       <span class="whitespace-nowrap">− Cek kasir {rupiah(ringkasan.totalCek)}</span>
     </div>
-    <div class="mt-4 flex items-baseline gap-3 border-t border-ink/10 pt-4">
+    <div class="mt-4 flex items-baseline gap-3 border-t border-line pt-4">
       <span class="text-[13px] text-muted">Selisih</span>
       <span class="whitespace-nowrap font-mono text-[34px] font-medium leading-none {ringkasan.selisih === 0 ? 'text-ink' : 'text-bad'}">
         {rupiah(ringkasan.selisih)}
@@ -963,7 +1033,7 @@
       Register POS dikurangi cek kasir untuk {judulTanggal}. Nol berarti buku cocok.
     </p>
 
-    <dl class="mt-5 grid divide-y divide-ink/10 border-t border-ink/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+    <dl class="mt-5 grid divide-y divide-line border-t border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       <div class="py-3 sm:py-4 sm:pr-6">
         <dt class="text-[13px] text-ink2">Cek diinput</dt>
         <dd class="mt-1.5">
@@ -996,7 +1066,7 @@
   </section>
 
   <!-- INPUT KASIR: tetap di atas saat menggulir (operator mengetik terus) -->
-  <section class="sticky top-0 z-20 space-y-3 rounded-2xl border border-ink/10 bg-card p-5">
+  <section class="sticky top-0 z-20 space-y-3 rounded-2xl border border-line bg-card p-5">
     <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
       <div>
         <label for="input-cepat" class="mb-1.5 flex items-baseline gap-2 text-[12px] text-muted">
@@ -1017,7 +1087,7 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="25m1"
-          class="h-10 w-40 rounded-lg border border-ink/15 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
+          class="h-10 w-40 rounded-lg border border-line2 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
         />
       </div>
 
@@ -1041,7 +1111,7 @@
           autocomplete="off"
           spellcheck="false"
           placeholder="50"
-          class="h-10 w-36 rounded-lg border border-ink/15 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
+          class="h-10 w-36 rounded-lg border border-line2 bg-raised px-3 font-mono text-[17px] font-medium text-ink outline-none transition-[background-color,border-color,box-shadow] placeholder:text-muted focus:border-accent focus:bg-card focus:ring-2 focus:ring-accent/25"
         />
       </div>
 
@@ -1095,13 +1165,13 @@
         class="flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[12px] {pratinjauCek.jenis === 'siap'
           ? 'border-ok/30 bg-ok/8 text-ink2'
           : pratinjauCek.jenis === 'sebagian'
-            ? 'border-ink/10 bg-raised/60 text-ink2'
+            ? 'border-line bg-raised/60 text-ink2'
             : 'border-bad/30 bg-bad/8 text-ink2'}"
       >
         {#if pratinjauCek.jenis === 'siap'}
           <Check size={14} strokeWidth={2} class="shrink-0 text-ok" />
           {#if pratinjauCek.kode}
-            <span class="rounded border border-ink/15 bg-card px-1.5 py-0.5 font-mono text-[11px] text-ink">{pratinjauCek.kode}</span>
+            <span class="rounded border border-line2 bg-card px-1.5 py-0.5 font-mono text-[11px] text-ink">{pratinjauCek.kode}</span>
           {/if}
         {:else if pratinjauCek.jenis === 'salah'}
           <TriangleAlert size={14} strokeWidth={1.5} class="shrink-0 text-bad" />
@@ -1119,11 +1189,11 @@
           data-ui="pilihSalesman"
           onclick={() => pilihSalesman(s.kode)}
           class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama
-            ? 'border-accent bg-accent text-white'
-            : 'border-ink/15 bg-card text-ink2 hover:bg-raised'}"
+            ? 'border-accent bg-accent text-onaccent'
+            : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
           title="Isi kolom Cek dengan kode {s.kode.toUpperCase()} untuk {s.nama}"
         >
-          <span class="font-mono text-[11px] {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama ? 'text-white/70' : 'text-muted'}">{s.kode.toUpperCase()}</span>
+          <span class="font-mono text-[11px] {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama ? 'text-onaccent/70' : 'text-muted'}">{s.kode.toUpperCase()}</span>
           <span>{s.nama}</span>
         </button>
       {/each}
@@ -1134,7 +1204,7 @@
   <AntreanCek daftar={antrean.daftar} kirim={() => kirimAntrean()} buang={(ref) => antreBuang(ref)} />
 
   <!-- TAB & SARING -->
-  <div class="flex flex-col gap-3 border-b border-ink/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
+  <div class="flex flex-col gap-3 border-b border-line pb-3 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex items-center gap-1">
       <button
         onclick={() => { tabAktif = 'cek'; }}
@@ -1171,7 +1241,7 @@
 
     {#if tabAktif === 'cek'}
       <div class="flex items-center gap-2">
-        <div class="inline-flex items-center rounded-lg border border-ink/10 bg-card p-0.5">
+        <div class="inline-flex items-center rounded-lg border border-line bg-card p-0.5">
           {#each ([['semua', 'Semua'], ['belum_input', 'Belum input'], ['beda_bayar', `Beda bayar${jmlBedaBayar ? ' · ' + jmlBedaBayar : ''}`], ['kurang_bayar', 'Kurang bayar'], ['kredit', 'Kredit']] as const) as [v, label] (v)}
             <button
               type="button"
@@ -1187,7 +1257,7 @@
           <input
             bind:value={cariTeks}
             placeholder="Cari"
-            class="h-9 w-40 rounded-lg border border-ink/15 bg-card pl-8 pr-2.5 text-[13px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25"
+            class="h-9 w-40 rounded-lg border border-line2 bg-card pl-8 pr-2.5 text-[13px] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25"
           />
         </div>
       </div>
@@ -1196,7 +1266,7 @@
 
   <!-- TAB 1: DAFTAR CEK -->
   {#if tabAktif === 'cek'}
-    <div class="overflow-hidden rounded-2xl border border-ink/10 bg-card">
+    <div class="overflow-hidden rounded-2xl border border-line bg-card">
       {#if cekTersaring.length === 0}
         <div class="px-6 py-10 text-center text-[13px] text-muted">
           Belum ada deklarasi cek kasir untuk hari ini
@@ -1204,7 +1274,7 @@
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-left text-[13px]">
-            <thead class="border-b border-ink/10 text-[12px] text-muted">
+            <thead class="border-b border-line text-[12px] text-muted">
               <tr>
                 <th class="px-3 py-2 font-medium">Jam</th>
                 <th class="px-3 py-2 font-medium">Penjual</th>
@@ -1217,7 +1287,7 @@
                 <th class="px-3 py-2 text-right font-medium">Aksi</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-ink/10">
+            <tbody class="divide-y divide-line">
               {#each cekTersaring as c (c.id)}
                 {@const isTarget = isBayarFocused && targetBayar?.id === c.id}
                 <tr
@@ -1234,14 +1304,14 @@
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'salesman'}
                       <span class="font-medium text-accent underline">{c.salesmanNama}</span>
                       <!-- Picker bottom-sheet: pengganti dropdown native (tahan semua browser) -->
-                      <div class="fixed inset-0 z-50 bg-ink/40" onclick={() => batalEdit()}>
-                        <div class="absolute left-2 right-2 bottom-2 max-h-[70vh] overflow-y-auto rounded-xl border border-ink/10 bg-card p-2 shadow-xl" onclick={(e) => e.stopPropagation()}>
+                      <div class="fixed inset-0 z-50 bg-scrim/45" onclick={() => batalEdit()}>
+                        <div class="absolute left-2 right-2 bottom-2 max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-card p-2 shadow-xl" onclick={(e) => e.stopPropagation()}>
                           <div class="px-2 py-1.5 text-[12px] text-muted">Pilih penjual</div>
                           {#each daftarSalesmanAktif as s (s.nama)}
                             <button
                               type="button"
                               onclick={() => { if (selEdit) selEdit.nilai = s.nama; simpanEdit(c); }}
-                              class="w-full rounded-lg px-3 py-3 text-left text-[14px] font-medium transition-colors {selEdit?.nilai === s.nama ? 'bg-accent text-white' : 'text-ink hover:bg-raised'}"
+                              class="w-full rounded-lg px-3 py-3 text-left text-[14px] font-medium transition-colors {selEdit?.nilai === s.nama ? 'bg-accent text-onaccent' : 'text-ink hover:bg-raised'}"
                             >
                               {s.nama}
                             </button>
@@ -1322,7 +1392,7 @@
                       type="checkbox"
                       checked={c.kredit}
                       onchange={(e) => toggleKredit(c, (e.target as HTMLInputElement).checked)}
-                      class="h-4 w-4 cursor-pointer rounded border-ink/25 align-middle accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                      class="h-4 w-4 cursor-pointer rounded border-line2 align-middle accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                       title="Tandai kredit (tidak ikut ditunggu di kotak bayar)"
                     />
                   </td>
@@ -1350,7 +1420,7 @@
                         type="button"
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
-                        class="mt-1 inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-white' : 'border-ink/15 bg-card text-ink2 hover:bg-raised'}"
+                        class="mt-1 inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-onaccent' : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
                         title="Buka galeri bukti gambar (layar penuh)"
                         aria-label="Bukti gambar: {fotoCek(c).length} foto"
                       >
@@ -1384,13 +1454,13 @@
   {#if galeri}
     {@const gambar = fotoCek(galeri.cek)}
     <div
-      class="fixed inset-0 z-[80] flex flex-col bg-ink"
+      class="fixed inset-0 z-[80] flex flex-col bg-scrim"
       role="dialog"
       aria-modal="true"
       aria-label="Galeri bukti cek"
     >
       <!-- KEPALA -->
-      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-paper">
+      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-kertas">
         <div class="min-w-0">
           <div class="flex items-center gap-2 text-[14px] font-medium">
             <Camera size={15} strokeWidth={1.5} class="shrink-0 text-white/60" />
@@ -1404,7 +1474,7 @@
           type="button"
           data-ui="tutupGaleri"
           onclick={tutupGaleri}
-          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium text-paper transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium text-kertas transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           title="Tutup galeri (Esc)"
         >
           <X size={14} strokeWidth={1.5} />
@@ -1456,7 +1526,7 @@
     <!-- GAMBAR BESAR: dibuka DI HALAMAN INI (bukan window/tab baru) -->
     {#if besar && gambar[galeri.idx]}
       <div class="fixed inset-0 z-[90] flex flex-col bg-black" onclick={tutupBesar} role="presentation">
-        <div class="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-paper" onclick={(e) => e.stopPropagation()}>
+        <div class="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-kertas" onclick={(e) => e.stopPropagation()}>
           <span class="font-mono text-[12px] text-white/60">{galeri.idx + 1} / {gambar.length}</span>
           <div class="flex items-center gap-1.5">
             <button type="button" onclick={() => geserGaleri(-1)} class="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium transition-colors hover:bg-white/10">
@@ -1491,19 +1561,19 @@
 
   <!-- TAB 2: PENJUALAN TANPA CEK -->
   {#if tabAktif === 'tanpa_cek'}
-    <div class="overflow-hidden rounded-2xl border border-ink/10 bg-card">
+    <div class="overflow-hidden rounded-2xl border border-line bg-card">
       {#if ringkasan.penjualanTanpaCek.length === 0}
         <div class="flex items-center justify-center gap-2 px-6 py-10 text-[13px] text-ok">
           <Check size={15} strokeWidth={2} />
           Semua transaksi register POS sudah punya pasangan cek kasir
         </div>
       {:else}
-        <div class="border-b border-ink/10 bg-bad/8 px-3 py-2.5 text-[12px] text-ink2">
+        <div class="border-b border-line bg-bad/8 px-3 py-2.5 text-[12px] text-ink2">
           Transaksi berikut tercatat di register POS Ollsera tetapi belum dideklarasikan oleh kasir
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-[13px]">
-            <thead class="border-b border-ink/10 text-[12px] text-muted">
+            <thead class="border-b border-line text-[12px] text-muted">
               <tr>
                 <th class="px-3 py-2 font-medium">Waktu</th>
                 <th class="px-3 py-2 font-medium">Order</th>
@@ -1513,7 +1583,7 @@
                 <th class="px-3 py-2 font-medium">Kasir POS</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-ink/10">
+            <tbody class="divide-y divide-line">
               {#each ringkasan.penjualanTanpaCek as p (p.orderNo)}
                 <tr class="transition-colors hover:bg-raised/40">
                   <td class="px-3 py-2.5 font-mono text-[12px] text-muted">{p.orderTime || '—'}</td>
@@ -1535,8 +1605,8 @@
 {/if}
 
 {#if dialog}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-6" data-ui="dialog">
-    <div class="w-full max-w-sm rounded-xl border border-ink/10 bg-card p-5 shadow-xl">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/45 p-6" data-ui="dialog">
+    <div class="w-full max-w-sm rounded-xl border border-line bg-card p-5 shadow-xl">
       <p class="whitespace-pre-line text-[13px] leading-5 text-ink">{dialog.teks}</p>
       <div class="mt-5 flex justify-end gap-2">
         {#if !dialog.hanyaOk}
@@ -1544,7 +1614,7 @@
             type="button"
             data-ui="dialogBatal"
             onclick={() => dialog?.jawab?.(false)}
-            class="rounded-lg border border-ink/15 bg-raised px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            class="rounded-lg border border-line2 bg-raised px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >Batal</button>
         {/if}
         <button
