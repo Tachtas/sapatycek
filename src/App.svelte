@@ -47,7 +47,6 @@
   // Data reactive dari SpacetimeDB
   let daftarCek = $state<any[]>([]);
   let daftarPenjualan = $state<any[]>([]);
-  let daftarStaff = $state<any[]>([]);
   let daftarFoto = $state<any[]>([]); // cek_foto_aman (view): bukti gambar per cek (galeri)
   let daftarSalesman = $state<any[]>([]);
 
@@ -323,9 +322,6 @@
     conn.db.penjualan.onInsert(() => refreshData());
     conn.db.penjualan.onUpdate(() => refreshData());
 
-    conn.db.staff.onInsert(() => refreshData());
-    conn.db.staff.onUpdate(() => refreshData());
-
     conn.db.salesman.onInsert(() => refreshData());
     conn.db.salesman.onUpdate(() => refreshData());
     conn.db.salesman.onDelete(() => refreshData());
@@ -341,10 +337,14 @@
       // diprivatkan (5 Nov 2026) supaya tidak lagi terbaca siapa pun yang
       // menyambung; view menyaring per pemanggil. Kalau kembali ke tabel privat,
       // SELURUH batch langganan ini gagal, bukan cuma galeri fotonya.
+      // `staff` SENGAJA TIDAK DILANGGAN (5 Nov 2026). Isinya email + identitas
+      // perangkat, dan tabel itu diprivatkan; viewnya hanya memberi baris
+      // PEMANGGIL sendiri. Yang penting: sapatycek memang TIDAK memakai satu pun
+      // barisnya (bacaannya mati), sementara satu kueri langganan yang gagal
+      // menggagalkan SELURUH batch ini — jadi menahannya bukan pilihan.
       .subscribe([
         'SELECT * FROM cek',
         'SELECT * FROM penjualan',
-        'SELECT * FROM staff',
         'SELECT * FROM salesman',
         'SELECT * FROM cek_foto_aman',
       ]);
@@ -363,7 +363,6 @@
       // Cek dari hari sebelumnya (dibersihkan otomatis oleh job sweep_cek
       // pukul 08:00 WIT; tombol di bawah untuk menjalankannya sendiri).
       jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
-      daftarStaff = Array.from(conn.db.staff.iter());
       daftarSalesman = Array.from(conn.db.salesman.iter());
       daftarFoto = Array.from(conn.db.cekFotoAman.iter());
     } catch (e) {
