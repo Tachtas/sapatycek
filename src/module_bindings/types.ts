@@ -16,6 +16,9 @@ export const AppConfig = __t.object("AppConfig", {
 });
 export type AppConfig = __Infer<typeof AppConfig>;
 
+export const AppConfigAman = __t.object("AppConfigAman", {});
+export type AppConfigAman = __Infer<typeof AppConfigAman>;
+
 export const Cek = __t.object("Cek", {
   id: __t.u64(),
   cekid: __t.string(),
@@ -35,6 +38,9 @@ export const Cek = __t.object("Cek", {
   updatedAt: __t.timestamp(),
 });
 export type Cek = __Infer<typeof Cek>;
+
+export const CekAman = __t.object("CekAman", {});
+export type CekAman = __Infer<typeof CekAman>;
 
 export const CekFoto = __t.object("CekFoto", {
   cekid: __t.string(),
@@ -165,6 +171,9 @@ export const Customer = __t.object("Customer", {
 });
 export type Customer = __Infer<typeof Customer>;
 
+export const CustomerAman = __t.object("CustomerAman", {});
+export type CustomerAman = __Infer<typeof CustomerAman>;
+
 export const ErpKirim = __t.object("ErpKirim", {
   orderNo: __t.string(),
   aksi: __t.string(),
@@ -175,6 +184,9 @@ export const ErpKirim = __t.object("ErpKirim", {
   pesan: __t.string(),
 });
 export type ErpKirim = __Infer<typeof ErpKirim>;
+
+export const ErpKirimAman = __t.object("ErpKirimAman", {});
+export type ErpKirimAman = __Infer<typeof ErpKirimAman>;
 
 export const ErpKirimCustomer = __t.object("ErpKirimCustomer", {
   id: __t.string(),
@@ -189,14 +201,6 @@ export const EverySpec = __t.object("EverySpec", {
   seconds: __t.u32(),
 });
 export type EverySpec = __Infer<typeof EverySpec>;
-
-export const GerbangTolak = __t.object("GerbangTolak", {
-  sender: __t.string(),
-  pertama: __t.timestamp(),
-  terakhir: __t.timestamp(),
-  jumlah: __t.u32(),
-});
-export type GerbangTolak = __Infer<typeof GerbangTolak>;
 
 export const KeranjangPemilik = __t.object("KeranjangPemilik", {
   orderNo: __t.string(),
@@ -231,6 +235,9 @@ export const NotaToko = __t.object("NotaToko", {
 });
 export type NotaToko = __Infer<typeof NotaToko>;
 
+export const NotaTokoAman = __t.object("NotaTokoAman", {});
+export type NotaTokoAman = __Infer<typeof NotaTokoAman>;
+
 export const Penjualan = __t.object("Penjualan", {
   orderNo: __t.string(),
   outlet: __t.string(),
@@ -263,6 +270,9 @@ export const Penjualan = __t.object("Penjualan", {
 });
 export type Penjualan = __Infer<typeof Penjualan>;
 
+export const PenjualanAman = __t.object("PenjualanAman", {});
+export type PenjualanAman = __Infer<typeof PenjualanAman>;
+
 export const PenjualanErp = __t.object("PenjualanErp", {
   orderNo: __t.string(),
   outlet: __t.string(),
@@ -278,6 +288,9 @@ export const PenjualanErp = __t.object("PenjualanErp", {
   erpAt: __t.timestamp(),
 });
 export type PenjualanErp = __Infer<typeof PenjualanErp>;
+
+export const PenjualanErpAman = __t.object("PenjualanErpAman", {});
+export type PenjualanErpAman = __Infer<typeof PenjualanErpAman>;
 
 export const PenjualanItem = __t.object("PenjualanItem", {
   id: __t.u64(),
@@ -302,6 +315,9 @@ export const PenjualanItem = __t.object("PenjualanItem", {
 });
 export type PenjualanItem = __Infer<typeof PenjualanItem>;
 
+export const PenjualanItemAman = __t.object("PenjualanItemAman", {});
+export type PenjualanItemAman = __Infer<typeof PenjualanItemAman>;
+
 export const Pindah = __t.object("Pindah", {
   kode: __t.string(),
   dari: __t.string(),
@@ -317,6 +333,9 @@ export const Pindah = __t.object("Pindah", {
 });
 export type Pindah = __Infer<typeof Pindah>;
 
+export const PindahAman = __t.object("PindahAman", {});
+export type PindahAman = __Infer<typeof PindahAman>;
+
 export const PindahItem = __t.object("PindahItem", {
   kunci: __t.string(),
   pindahKode: __t.string(),
@@ -324,6 +343,9 @@ export const PindahItem = __t.object("PindahItem", {
   qty: __t.i32(),
 });
 export type PindahItem = __Infer<typeof PindahItem>;
+
+export const PindahItemAman = __t.object("PindahItemAman", {});
+export type PindahItemAman = __Infer<typeof PindahItemAman>;
 
 export const PosLog = __t.object("PosLog", {
   id: __t.u64(),
@@ -347,6 +369,9 @@ export const Printer = __t.object("Printer", {
 });
 export type Printer = __Infer<typeof Printer>;
 
+export const PrinterAman = __t.object("PrinterAman", {});
+export type PrinterAman = __Infer<typeof PrinterAman>;
+
 export const Product = __t.object("Product", {
   sku: __t.string(),
   name: __t.string(),
@@ -358,6 +383,9 @@ export const Product = __t.object("Product", {
   active: __t.bool(),
 });
 export type Product = __Infer<typeof Product>;
+
+export const ProductAman = __t.object("ProductAman", {});
+export type ProductAman = __Infer<typeof ProductAman>;
 
 export const PullTimer = __t.object("PullTimer", {
   id: __t.u64(),
@@ -461,6 +489,9 @@ export const StockSnapshot = __t.object("StockSnapshot", {
 });
 export type StockSnapshot = __Infer<typeof StockSnapshot>;
 
+export const StockSnapshotAman = __t.object("StockSnapshotAman", {});
+export type StockSnapshotAman = __Infer<typeof StockSnapshotAman>;
+
 export const StokPos = __t.object("StokPos", {
   sku: __t.string(),
   terjual: __t.i64(),
@@ -468,6 +499,9 @@ export const StokPos = __t.object("StokPos", {
   tanggal: __t.string(),
 });
 export type StokPos = __Infer<typeof StokPos>;
+
+export const StokPosAman = __t.object("StokPosAman", {});
+export type StokPosAman = __Infer<typeof StokPosAman>;
 
 export const SweepCekFire = __t.object("SweepCekFire", {
   scheduledId: __t.u64(),
@@ -496,6 +530,9 @@ export const SyncLog = __t.object("SyncLog", {
   lastSyncedAt: __t.timestamp(),
 });
 export type SyncLog = __Infer<typeof SyncLog>;
+
+export const SyncLogAman = __t.object("SyncLogAman", {});
+export type SyncLogAman = __Infer<typeof SyncLogAman>;
 
 export const SyncOrderTask = __t.object("SyncOrderTask", {
   orderNo: __t.string(),

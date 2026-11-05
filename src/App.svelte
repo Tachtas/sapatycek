@@ -315,12 +315,12 @@
   function pasangSubscription() {
     if (!conn) return;
 
-    conn.db.cek.onInsert(() => refreshData());
-    conn.db.cek.onUpdate(() => refreshData());
-    conn.db.cek.onDelete(() => refreshData());
+    conn.db.cekAman.onInsert(() => refreshData());
+    conn.db.cekAman.onUpdate(() => refreshData());
+    conn.db.cekAman.onDelete(() => refreshData());
 
-    conn.db.penjualan.onInsert(() => refreshData());
-    conn.db.penjualan.onUpdate(() => refreshData());
+    conn.db.penjualanAman.onInsert(() => refreshData());
+    conn.db.penjualanAman.onUpdate(() => refreshData());
 
     conn.db.salesmanAman.onInsert(() => refreshData());
     conn.db.salesmanAman.onUpdate(() => refreshData());
@@ -347,8 +347,8 @@
       // SUDAH TERDAFTAR dan nol baris kepada yang belum — jadi pencocokan kode
       // dan nama kasir yang diketik operator tetap utuh.
       .subscribe([
-        'SELECT * FROM cek',
-        'SELECT * FROM penjualan',
+        'SELECT * FROM cek_aman',
+        'SELECT * FROM penjualan_aman',
         'SELECT * FROM salesman_aman',
         'SELECT * FROM cek_foto_aman',
       ]);
@@ -357,16 +357,16 @@
   function refreshData() {
     if (!conn?.db) return;
     try {
-      daftarCek = Array.from(conn.db.cek.iter())
+      daftarCek = Array.from(conn.db.cekAman.iter())
         .filter((c: any) => c.outlet === OUTLET && c.tanggal === tanggal)
         .sort((a: any, b: any) => Number(b.id - a.id));
 
-      daftarPenjualan = Array.from(conn.db.penjualan.iter())
+      daftarPenjualan = Array.from(conn.db.penjualanAman.iter())
         .filter((p: any) => p.outlet === OUTLET && p.orderDate === tanggal);
 
       // Cek dari hari sebelumnya (dibersihkan otomatis oleh job sweep_cek
       // pukul 08:00 WIT; tombol di bawah untuk menjalankannya sendiri).
-      jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
+      jmlCekLama = Array.from(conn.db.cekAman.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
       daftarSalesman = Array.from(conn.db.salesmanAman.iter());
       daftarFoto = Array.from(conn.db.cekFotoAman.iter());
     } catch (e) {
