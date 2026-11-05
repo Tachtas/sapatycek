@@ -14,6 +14,20 @@ fi
 printf '%s\n' "$hasil" | tail -1
 echo "OK — tidak ada nama/modul tak dikenal."
 
+# SEJAK 5 Nov 2026 PEMERIKSA TIPE BENAR-BENAR BERJALAN. Sebelumnya
+# svelte.config.js tidak ada, jadi svelte-check menolak memeriksa seluruh
+# berkas .svelte (dua galat config palsu) dan hasilnya selalu "0 errors" apa
+# pun isi kodenya — pagar di atas pun tidak menjaga apa pun. Karena itu galat
+# tipe sekarang digagalkan di sini: tanpa langkah ini perbaikan itu tidak
+# menjaga apa pun. Diverifikasi dengan menanam galat tipe sengaja.
+jumlah_galat=$(printf '%s\n' "$hasil" | grep -oE 'found [0-9]+ error' | grep -oE '[0-9]+' | head -1)
+if [ "${jumlah_galat:-0}" != "0" ]; then
+  echo "GAGAL — svelte-check melaporkan ${jumlah_galat} galat tipe:"
+  printf '%s\n' "$hasil" | grep -A3 "Error:" | head -30
+  exit 1
+fi
+echo "OK — tidak ada galat tipe."
+
 # Bundel harus benar-benar bisa dibangun — error parse/penggabungan nama
 # (mis. impor ganda) tidak tertangkap pemeriksaan nama di atas.
 if ! npm run build >/tmp/periksa-build.log 2>&1; then
