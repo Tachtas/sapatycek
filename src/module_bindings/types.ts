@@ -436,6 +436,9 @@ export const Salesman = __t.object("Salesman", {
 });
 export type Salesman = __Infer<typeof Salesman>;
 
+export const SalesmanAman = __t.object("SalesmanAman", {});
+export type SalesmanAman = __Infer<typeof SalesmanAman>;
+
 export const Staff = __t.object("Staff", {
   identity: __t.identity(),
   pin: __t.string(),
@@ -446,6 +449,9 @@ export const Staff = __t.object("Staff", {
   active: __t.bool(),
 });
 export type Staff = __Infer<typeof Staff>;
+
+export const StaffAman = __t.object("StaffAman", {});
+export type StaffAman = __Infer<typeof StaffAman>;
 
 export const StockSnapshot = __t.object("StockSnapshot", {
   sku: __t.string(),

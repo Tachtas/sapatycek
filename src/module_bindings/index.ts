@@ -104,33 +104,26 @@ import * as TarikPenjualanErpProcedure from "./tarik_penjualan_erp_procedure";
 // Import all table schema definitions
 import AppConfigRow from "./app_config_table";
 import CekRow from "./cek_table";
-import CekFotoRow from "./cek_foto_table";
 import CekFotoAmanRow from "./cek_foto_aman_table";
 import CetakJobRow from "./cetak_job_table";
 import CronJobsRow from "./cron_jobs_table";
 import CustomerRow from "./customer_table";
 import ErpKirimRow from "./erp_kirim_table";
-import ErpKirimCustomerRow from "./erp_kirim_customer_table";
 import GerbangTolakRow from "./gerbang_tolak_table";
-import KeranjangPemilikRow from "./keranjang_pemilik_table";
-import MintaBersihTerjualRow from "./minta_bersih_terjual_table";
-import MintaTarikStokRow from "./minta_tarik_stok_table";
 import NotaTokoRow from "./nota_toko_table";
 import PenjualanRow from "./penjualan_table";
 import PenjualanErpRow from "./penjualan_erp_table";
 import PenjualanItemRow from "./penjualan_item_table";
 import PindahRow from "./pindah_table";
 import PindahItemRow from "./pindah_item_table";
-import PosLogRow from "./pos_log_table";
 import PrinterRow from "./printer_table";
 import ProductRow from "./product_table";
 import PullTimerRow from "./pull_timer_table";
-import RekonRow from "./rekon_table";
 import SalesmanRow from "./salesman_table";
-import StaffRow from "./staff_table";
+import SalesmanAmanRow from "./salesman_aman_table";
+import StaffAmanRow from "./staff_aman_table";
 import StockSnapshotRow from "./stock_snapshot_table";
 import StokPosRow from "./stok_pos_table";
-import SyncCursorRow from "./sync_cursor_table";
 import SyncLogRow from "./sync_log_table";
 import TarikTimerRow from "./tarik_timer_table";
 
@@ -168,17 +161,6 @@ const tablesSchema = __schema({
       { name: 'cek_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CekRow),
-  cekFoto: __table({
-    name: 'cek_foto',
-    indexes: [
-      { accessor: 'cekid', name: 'cek_foto_cekid_idx_btree', algorithm: 'btree', columns: [
-        'cekid',
-      ] },
-    ],
-    constraints: [
-      { name: 'cek_foto_cekid_key', constraint: 'unique', columns: ['cekid'] },
-    ],
-  }, CekFotoRow),
   cetakJob: __table({
     name: 'cetak_job',
     indexes: [
@@ -215,17 +197,6 @@ const tablesSchema = __schema({
       { name: 'erp_kirim_order_no_key', constraint: 'unique', columns: ['orderNo'] },
     ],
   }, ErpKirimRow),
-  erpKirimCustomer: __table({
-    name: 'erp_kirim_customer',
-    indexes: [
-      { accessor: 'id', name: 'erp_kirim_customer_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'erp_kirim_customer_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, ErpKirimCustomerRow),
   gerbangTolak: __table({
     name: 'gerbang_tolak',
     indexes: [
@@ -237,39 +208,6 @@ const tablesSchema = __schema({
       { name: 'gerbang_tolak_sender_key', constraint: 'unique', columns: ['sender'] },
     ],
   }, GerbangTolakRow),
-  keranjangPemilik: __table({
-    name: 'keranjang_pemilik',
-    indexes: [
-      { accessor: 'orderNo', name: 'keranjang_pemilik_order_no_idx_btree', algorithm: 'btree', columns: [
-        'orderNo',
-      ] },
-    ],
-    constraints: [
-      { name: 'keranjang_pemilik_order_no_key', constraint: 'unique', columns: ['orderNo'] },
-    ],
-  }, KeranjangPemilikRow),
-  mintaBersihTerjual: __table({
-    name: 'minta_bersih_terjual',
-    indexes: [
-      { accessor: 'sku', name: 'minta_bersih_terjual_sku_idx_btree', algorithm: 'btree', columns: [
-        'sku',
-      ] },
-    ],
-    constraints: [
-      { name: 'minta_bersih_terjual_sku_key', constraint: 'unique', columns: ['sku'] },
-    ],
-  }, MintaBersihTerjualRow),
-  mintaTarikStok: __table({
-    name: 'minta_tarik_stok',
-    indexes: [
-      { accessor: 'sku', name: 'minta_tarik_stok_sku_idx_btree', algorithm: 'btree', columns: [
-        'sku',
-      ] },
-    ],
-    constraints: [
-      { name: 'minta_tarik_stok_sku_key', constraint: 'unique', columns: ['sku'] },
-    ],
-  }, MintaTarikStokRow),
   notaToko: __table({
     name: 'nota_toko',
     indexes: [
@@ -350,20 +288,6 @@ const tablesSchema = __schema({
       { name: 'pindah_item_kunci_key', constraint: 'unique', columns: ['kunci'] },
     ],
   }, PindahItemRow),
-  posLog: __table({
-    name: 'pos_log',
-    indexes: [
-      { accessor: 'by_at', name: 'pos_log_at_idx_btree', algorithm: 'btree', columns: [
-        'at',
-      ] },
-      { accessor: 'id', name: 'pos_log_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'pos_log_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, PosLogRow),
   printer: __table({
     name: 'printer',
     indexes: [
@@ -397,17 +321,6 @@ const tablesSchema = __schema({
       { name: 'pull_timer_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PullTimerRow),
-  rekon: __table({
-    name: 'rekon',
-    indexes: [
-      { accessor: 'id', name: 'rekon_id_idx_btree', algorithm: 'btree', columns: [
-        'id',
-      ] },
-    ],
-    constraints: [
-      { name: 'rekon_id_key', constraint: 'unique', columns: ['id'] },
-    ],
-  }, RekonRow),
   salesman: __table({
     name: 'salesman',
     indexes: [
@@ -422,17 +335,6 @@ const tablesSchema = __schema({
       { name: 'salesman_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, SalesmanRow),
-  staff: __table({
-    name: 'staff',
-    indexes: [
-      { accessor: 'identity', name: 'staff_identity_idx_btree', algorithm: 'btree', columns: [
-        'identity',
-      ] },
-    ],
-    constraints: [
-      { name: 'staff_identity_key', constraint: 'unique', columns: ['identity'] },
-    ],
-  }, StaffRow),
   stockSnapshot: __table({
     name: 'stock_snapshot',
     indexes: [
@@ -455,17 +357,6 @@ const tablesSchema = __schema({
       { name: 'stok_pos_sku_key', constraint: 'unique', columns: ['sku'] },
     ],
   }, StokPosRow),
-  syncCursor: __table({
-    name: 'sync_cursor',
-    indexes: [
-      { accessor: 'key', name: 'sync_cursor_key_idx_btree', algorithm: 'btree', columns: [
-        'key',
-      ] },
-    ],
-    constraints: [
-      { name: 'sync_cursor_key_key', constraint: 'unique', columns: ['key'] },
-    ],
-  }, SyncCursorRow),
   syncLog: __table({
     name: 'sync_log',
     indexes: [
@@ -502,6 +393,20 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, CronJobsRow),
+  salesmanAman: __table({
+    name: 'salesman_aman',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, SalesmanAmanRow),
+  staffAman: __table({
+    name: 'staff_aman',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, StaffAmanRow),
   "relations.unique": __table({
     name: 'relations.unique',
     indexes: [
@@ -617,35 +522,28 @@ const __qb = __makeQueryBuilder(tablesSchema.schemaType);
 export const tables = {
   appConfig: __qb.appConfig,
   cek: __qb.cek,
-  cekFoto: __qb.cekFoto,
   cetakJob: __qb.cetakJob,
   customer: __qb.customer,
   erpKirim: __qb.erpKirim,
-  erpKirimCustomer: __qb.erpKirimCustomer,
   gerbangTolak: __qb.gerbangTolak,
-  keranjangPemilik: __qb.keranjangPemilik,
-  mintaBersihTerjual: __qb.mintaBersihTerjual,
-  mintaTarikStok: __qb.mintaTarikStok,
   notaToko: __qb.notaToko,
   penjualan: __qb.penjualan,
   penjualanErp: __qb.penjualanErp,
   penjualanItem: __qb.penjualanItem,
   pindah: __qb.pindah,
   pindahItem: __qb.pindahItem,
-  posLog: __qb.posLog,
   printer: __qb.printer,
   product: __qb.product,
   pullTimer: __qb.pullTimer,
-  rekon: __qb.rekon,
   salesman: __qb.salesman,
-  staff: __qb.staff,
   stockSnapshot: __qb.stockSnapshot,
   stokPos: __qb.stokPos,
-  syncCursor: __qb.syncCursor,
   syncLog: __qb.syncLog,
   tarikTimer: __qb.tarikTimer,
   cekFotoAman: __qb.cekFotoAman,
   cronJobs: __qb.cronJobs,
+  salesmanAman: __qb.salesmanAman,
+  staffAman: __qb.staffAman,
   relations: {
     unique: __qb["relations.unique"],
     fk: __qb["relations.fk"],

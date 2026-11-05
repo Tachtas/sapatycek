@@ -322,9 +322,9 @@
     conn.db.penjualan.onInsert(() => refreshData());
     conn.db.penjualan.onUpdate(() => refreshData());
 
-    conn.db.salesman.onInsert(() => refreshData());
-    conn.db.salesman.onUpdate(() => refreshData());
-    conn.db.salesman.onDelete(() => refreshData());
+    conn.db.salesmanAman.onInsert(() => refreshData());
+    conn.db.salesmanAman.onUpdate(() => refreshData());
+    conn.db.salesmanAman.onDelete(() => refreshData());
 
     conn.db.cekFotoAman.onInsert(() => refreshData());
     conn.db.cekFotoAman.onUpdate(() => refreshData());
@@ -342,10 +342,14 @@
       // PEMANGGIL sendiri. Yang penting: sapatycek memang TIDAK memakai satu pun
       // barisnya (bacaannya mati), sementara satu kueri langganan yang gagal
       // menggagalkan SELURUH batch ini — jadi menahannya bukan pilihan.
+      // `salesman` dibaca lewat VIEW `salesman_aman` (5 Nov 2026). Tabel itu
+      // diprivatkan; viewnya memberikan seluruh daftar kepada pemanggil yang
+      // SUDAH TERDAFTAR dan nol baris kepada yang belum — jadi pencocokan kode
+      // dan nama kasir yang diketik operator tetap utuh.
       .subscribe([
         'SELECT * FROM cek',
         'SELECT * FROM penjualan',
-        'SELECT * FROM salesman',
+        'SELECT * FROM salesman_aman',
         'SELECT * FROM cek_foto_aman',
       ]);
   }
@@ -363,7 +367,7 @@
       // Cek dari hari sebelumnya (dibersihkan otomatis oleh job sweep_cek
       // pukul 08:00 WIT; tombol di bawah untuk menjalankannya sendiri).
       jmlCekLama = Array.from(conn.db.cek.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
-      daftarSalesman = Array.from(conn.db.salesman.iter());
+      daftarSalesman = Array.from(conn.db.salesmanAman.iter());
       daftarFoto = Array.from(conn.db.cekFotoAman.iter());
     } catch (e) {
       console.error('Error membaca tabel:', e);

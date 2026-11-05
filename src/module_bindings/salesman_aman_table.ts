@@ -11,6 +11,12 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  key: __t.string().primaryKey(),
-  lastModified: __t.string().name("last_modified"),
+  id: __t.string().primaryKey(),
+  nama: __t.string(),
+  kode: __t.string(),
+  outlet: __t.string(),
+  aktif: __t.bool(),
+  email: __t.string(),
+  aksesPos: __t.bool().name("akses_pos"),
+  posAdmin: __t.bool().name("pos_admin"),
 });
