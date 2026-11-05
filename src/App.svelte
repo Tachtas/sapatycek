@@ -12,7 +12,6 @@
     X,
     Check,
     Search,
-    Palette,
     Trash,
     ChevronLeft,
     ChevronRight,
@@ -127,20 +126,16 @@
     return 'kas';
   }
 
+  // PEMILIH TEMA DIBUANG 5 Nov 2026 (permintaan pemilik): sapatycek dipakai di
+  // komputer, dan tombol itu elemen pertama yang bisa difokus di halaman —
+  // jadi Tab pertama selalu mendarat di sana, di tengah alur mengetik cek.
+  // Paletnya TETAP dibaca dari penyimpanan perangkat supaya tampilan yang sudah
+  // dipilih tidak berubah; yang hilang hanya cara menggantinya dari layar.
   let tema = $state(bacaTema());
-  let menuTema = $state(false);
-  const temaAktif = $derived(TEMA.find((t) => t.id === tema) ?? TEMA[0]);
 
   $effect(() => {
     document.documentElement.dataset.tema = tema;
   });
-
-  function pilihTema(id: string) {
-    tema = id;
-    try { localStorage.setItem(KUNCI_TEMA, id); } catch {}
-    menuTema = false;
-    inputCepatEl?.focus();
-  }
 
   // Paksa kembali ke tab Cek bila daftar tanpa cek jadi kosong
   $effect(() => {
@@ -1011,39 +1006,6 @@
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <!-- Ganti tema: menempelkan data-tema ke <html>, pilihan disimpan di perangkat -->
-      <div class="relative">
-        <button
-          type="button"
-          data-ui="gantiTema"
-          onclick={() => (menuTema = !menuTema)}
-          aria-haspopup="menu"
-          aria-expanded={menuTema}
-          title="Ganti tema"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-line2 bg-card px-2.5 py-1.5 text-[12px] font-medium text-ink2 transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-        >
-          <Palette size={14} strokeWidth={1.5} class="text-muted" />
-          {temaAktif.nama}
-        </button>
-        {#if menuTema}
-          <div class="fixed inset-0 z-30" onclick={() => (menuTema = false)} role="presentation"></div>
-          <div class="absolute top-full right-0 z-40 mt-1 w-44 rounded-lg border border-line bg-card p-1 shadow-xl" role="menu">
-            {#each TEMA as t (t.id)}
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={tema === t.id}
-                onclick={() => pilihTema(t.id)}
-                class="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {tema === t.id ? 'bg-raised text-ink' : 'text-ink2 hover:bg-raised/60'}"
-              >
-                <span>{t.nama}</span>
-                {#if tema === t.id}<Check size={13} strokeWidth={2} class="text-accent" />{/if}
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
       <div class="flex items-center gap-2 text-[12px] text-ink2">
         <span class="h-1.5 w-1.5 rounded-full {statusNada}"></span>
         <span>{statusTeks}</span>
