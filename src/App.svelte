@@ -147,6 +147,30 @@
     if (tabAktif === 'tanpa_cek' && ringkasan.penjualanTanpaCek.length === 0) tabAktif = 'cek';
   });
 
+  // KURSOR SELALU DI KOLOM CEK (5 Nov 2026). onMount tidak cukup untuk ini:
+  // kolom Cek hanya ada di cabang {:else} status sesi, jadi saat onMount jalan
+  // bind:this-nya masih null dan panggilan focus() di sana hilang TANPA galat —
+  // kolomnya baru muncul sesudah pemeriksaan sesi selesai, dan tidak ada yang
+  // memfokuskannya. Difokuskan SEKALI per elemen: cukup saat kolomnya muncul,
+  // dan tidak merebut fokus dari alur yang sengaja memindahkannya ke Bayar.
+  let cepatSudahDifokus: HTMLInputElement | null = null;
+  $effect(() => {
+    const el = inputCepatEl;
+    if (!el || el === cepatSudahDifokus) return;
+    cepatSudahDifokus = el;
+    void tick().then(() => el.focus());
+  });
+
+  // Kembali dari aplikasi/tab lain: kalau tidak ada apa pun yang difokus di dalam
+  // halaman, kursor lagi-lagi ke kolom Cek. Tidak merebut fokus dari kolom yang
+  // sedang dipakai operator, jadi aman disambungkan ke visibilitychange.
+  function fokusKeCekBilaKosong() {
+    if (!inputCepatEl) return;
+    const a = document.activeElement as HTMLElement | null;
+    if (a && a !== document.body && a !== document.documentElement) return;
+    inputCepatEl.focus();
+  }
+
   function setPesanPelunasan(sales: string, nominal: number, bayar: number, kembali: number) {
     pesanGalat = null;
     pesanPelunasan = { sales, nominal, bayar, kembali };
@@ -213,7 +237,12 @@
     } catch {}
 
     if (sesi.status === 'oke') hubungkanSpacetimeDB();
-    inputCepatEl?.focus();
+    // Kursor ke kolom Cek TIDAK dipasang di sini: kolomnya belum tentu ada saat
+    // ini (lihat $effect pemfokus di atas — itulah jalur yang benar). Yang
+    // dipasang di sini hanya pemulihan saat operator kembali dari aplikasi lain.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') fokusKeCekBilaKosong();
+    });
     // Kursor kasir tidak boleh keluar dari pasangan input Cek/Bayar:
     // klik pada area non-interaktif (baris tabel, kartu, celah) tidak
     // memindahkan fokus — hanya klik pada tombol/input/link yang boleh.
