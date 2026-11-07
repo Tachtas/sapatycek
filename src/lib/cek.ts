@@ -64,6 +64,59 @@ export function uraiCek(teksMentah: string, cariNama: (kode: string) => string):
   return { jenis: 'siap', teks: `${rupiah(nominal)} · ${tipe} · ${nama}`, nominal, tipe, kode };
 }
 
+/**
+ * Baris cek yang sudah TAMPIL di layar tetapi belum tentu ada di server.
+ * `id`-nya sementara dan negatif: id server selalu positif (autoIncrement),
+ * jadi keduanya tidak mungkin bertabrakan.
+ */
+export type BarisOptimis = {
+  id: bigint;
+  tanggal: string;
+  jam: string;
+  nominal: bigint;
+  tipe: string;
+};
+
+/**
+ * Kunci pencocokan baris optimis ↔ baris server = kunci IDEMPOTENSI reducer
+ * `tambah_deklarasi_cek` (outlet+tanggal+jam+salesman+nominal+tipe). `salesman`
+ * sengaja TIDAK ikut dibandingkan: server yang menerjemahkan kode huruf menjadi
+ * nama, jadi baris yang versi server-nya beda ejaan tidak akan pernah cocok dan
+ * tampil dua kali. Sisanya sama persis dengan yang dikirim klien (jam, nominal,
+ * tipe), dan dua cek dengan jam sama persis sampai detik tidak mungkin diketik
+ * manusia (kalau pun sama, server sudah membuang yang kedua).
+ *
+ * Satu baris server hanya menyerap SATU baris optimis (`terpakai`), jadi kirim
+ * ganda dari antrean HP tidak menghapus dua baris di layar.
+ */
+export function cocokOptimis(
+  optimis: BarisOptimis[],
+  server: any[]
+): { sisa: BarisOptimis[]; peta: Record<string, string> } {
+  const sisa: BarisOptimis[] = [];
+  const peta: Record<string, string> = {};
+  const terpakai = new Set<string>();
+  for (const o of optimis) {
+    const s = (server || []).find(
+      (c: any) =>
+        c &&
+        c.id > 0n && // id server selalu positif; id optimis negatif
+        !terpakai.has(String(c.id)) &&
+        c.tanggal === o.tanggal &&
+        c.jam === o.jam &&
+        c.tipe === o.tipe &&
+        BigInt(c.nominal) === o.nominal
+    );
+    if (s) {
+      terpakai.add(String(s.id));
+      peta[String(o.id)] = String(s.id);
+    } else {
+      sisa.push(o);
+    }
+  }
+  return { sisa, peta };
+}
+
 export type Ringkasan = {
   totalCek: number;
   totalDibayar: number;

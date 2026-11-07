@@ -18,7 +18,7 @@
   } from '@lucide/svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
-  import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan } from './lib/cek';
+  import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan, cocokOptimis } from './lib/cek';
   import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
@@ -55,6 +55,59 @@
   let inputCepatEl = $state<HTMLInputElement | null>(null);
   let inputBayarEl = $state<HTMLInputElement | null>(null);
 
+  // BARIS OPTIMIS (7 Nov 2026). Baris cek dulu baru muncul ~2 detik sesudah
+  // Enter: satu-satunya sumber daftar adalah baris yang dikirim BALIK server
+  // lewat langganan (biaya tulis + langganan SpacetimeDB), jadi operator
+  // melihat inputnya "tidak masuk-masuk". Sekarang barisnya digambar SEKETIKA
+  // dengan id SEMENTARA yang negatif (id server selalu positif, autoIncrement)
+  // dan dibuang begitu baris server yang sepadan tiba.
+  let cekOptimis = $state<any[]>([]);
+  // id sementara -> id server, dipakai menjaga pembayaran (lihat kirimBayar).
+  const optimisKeServer: Record<string, string> = {};
+  let urutOptimis = 0n;
+
+  // Yang digambar layar: baris optimis lebih dulu (paling baru), lalu baris server.
+  const cekTampil = $derived([...cekOptimis, ...daftarCek]);
+
+  function barisOptimis(jam: string, salesman: string, nominal: bigint, tipe: string): any {
+    return {
+      id: --urutOptimis, // negatif & menurun = id sementara
+      optimis: true,
+      cekid: '',
+      outlet: OUTLET,
+      tanggal,
+      jam,
+      salesman,
+      salesmanNama: salesman,
+      nominal,
+      dibayar: 0n,
+      tipe,
+      kredit: false,
+      status: 'Belum Cocok',
+      orderNo: '',
+      customer: '',
+      shortUrl: '',
+    };
+  }
+
+  function tambahOptimis(o: any) {
+    cekOptimis = [...cekOptimis, o];
+    triggerFlash(o.id);
+  }
+
+  function buangOptimis(id: bigint) {
+    cekOptimis = cekOptimis.filter((o) => o.id !== id);
+  }
+
+  // Dipanggil dari refreshData(): baris server yang sudah tiba menyerap baris
+  // optimis yang sepadan (kunci alaminya sama — lihat cocokOptimis).
+  function rekonsiliasiOptimis() {
+    if (cekOptimis.length === 0) return;
+    const { sisa, peta } = cocokOptimis(cekOptimis, daftarCek);
+    for (const k of Object.keys(peta)) optimisKeServer[k] = peta[k];
+    if (sisa.length !== cekOptimis.length) cekOptimis = sisa;
+  }
+
   // Status fokus kursor di bayar untuk sorot baris target
   let isBayarFocused = $state(false);
 
@@ -77,7 +130,10 @@
     });
   }
   let menyimpanBayar = $state(false);
-  let pendingCekNominal = $state<number | null>(null);
+  // Baris cek yang baru diketik tampil seketika, tetapi id server-nya menyusul
+  // (~2 detik). Ini id baris yang SEDANG ditunggu pembayarannya, sekaligus
+  // penjaga agar tidak ada dua rantai tunggu yang membayar dua kali.
+  let bayarTungguId: bigint | null = null;
 
   // Keterangan pelunasan di samping input bayar (permanen tidak hilang setelah 5 detik)
   let pesanPelunasan = $state<{ sales: string; nominal: number; bayar: number; kembali: number } | null>(null);
@@ -213,13 +269,14 @@
     return daftarSalesmanAktif.find((s) => s.kode.toLowerCase() === teks[0])?.nama || '';
   }
 
-  // Target cek terbaru yang belum lunas (bukan kredit)
+  // Target cek terbaru yang belum lunas (bukan kredit). Dari cekTampil, supaya
+  // cek yang baru diketik sudah jadi sasaran pembayaran SEKETIKA (dulu barisnya
+  // belum ada di sini selama ~2 detik, dan kolom Bayar bisa membayar cek lain).
   const targetBayar = $derived.by(() => {
-    return daftarCek.find((c) => !c.kredit && Number(c.dibayar) < Number(c.nominal)) || null;
+    return cekTampil.find((c) => !c.kredit && Number(c.dibayar) < Number(c.nominal)) || null;
   });
 
   const sisaTargetBayar = $derived.by(() => {
-    if (pendingCekNominal !== null) return pendingCekNominal;
     if (!targetBayar) return 0;
     return Math.max(0, Number(targetBayar.nominal) - Number(targetBayar.dibayar));
   });
@@ -393,6 +450,10 @@
       jmlCekLama = Array.from(conn.db.cekAman.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
       daftarSalesman = Array.from(conn.db.salesmanAman.iter());
       daftarFoto = Array.from(conn.db.cekFotoAman.iter());
+
+      // Baris server yang baru tiba menyerap baris optimisnya → tidak ada baris
+      // kembar di layar, dan id sementara diganti id server.
+      rekonsiliasiOptimis();
     } catch (e) {
       console.error('Error membaca tabel:', e);
     }
@@ -460,8 +521,6 @@
     const kode = tafsir.kode;
     const tipe = tafsir.tipeDigit === '2' ? 'Obral' : tafsir.tipeDigit === '3' ? 'Grosir' : 'Ecer';
 
-    pendingCekNominal = tafsir.nominal;
-
     // Pindahkan kursor SEKETIKA (0ms) ke kotak Bayar
     cepatTeks = '';
     inputBayarEl?.focus();
@@ -471,9 +530,14 @@
 
     const jam = new Date().toTimeString().slice(0, 8);
 
+    // Barisnya masuk daftar SEKARANG — tidak menunggu perjalanan ke server.
+    const optimis = barisOptimis(jam, salesman, nominal, tipe);
+
     // Internet putus: cek tetap dicatat, disimpan di HP dan dikirim ulang
-    // otomatis saat tersambung (server idempoten, jadi tidak dobel).
+    // otomatis saat tersambung (server idempoten, jadi tidak dobel). Barisnya
+    // tetap tampil (bertanda belum ke server) supaya operator melihat inputnya.
     if (statusKoneksi !== 'terhubung' || !conn?.reducers?.tambahDeklarasiCek) {
+      tambahOptimis(optimis);
       antreTambah({
         ref: (crypto.randomUUID?.() ?? String(Date.now() + Math.random())),
         outlet: OUTLET,
@@ -486,10 +550,10 @@
         at: Date.now(),
       });
       setPesanGalat(`Tersimpan di HP (${antrean.daftar.length} belum terkirim) — dikirim otomatis begitu tersambung.`);
-      pendingCekNominal = null;
       return;
     }
 
+    tambahOptimis(optimis);
     menyimpanCek = true;
 
     try {
@@ -505,18 +569,15 @@
         dibayar: 0n,
       });
 
-      await tick();
-      if (daftarCek.length > 0) triggerFlash(daftarCek[0].id);
-
       if (bayarTeks.trim()) {
         onInputBayar();
       }
     } catch (e: any) {
+      buangOptimis(optimis.id); // barisnya tidak jadi ada di server
       setPesanGalat(`Gagal simpan cek: ${e.message || e}`);
       cepatTeks = teks;
       inputCepatEl?.focus();
     } finally {
-      pendingCekNominal = null;
       menyimpanCek = false;
     }
   }
@@ -547,38 +608,75 @@
   }
 
   async function kirimBayar() {
+    // SATU pembayaran pada satu waktu. Rantai kedua — dari ketikan berikutnya
+    // atau dari kirimCepat setelah cek tersimpan — tidak boleh membayar baris
+    // yang sama dua kali. Dulu penjaganya baru dipasang SESUDAH baris cek baru
+    // menunggu id server, jadi rantai kedua lolos dan nominalnya masuk dua kali.
+    if (menyimpanBayar) return;
     if (butuhKoneksi("menghitung pembayaran")) return;
     const teks = bayarTeks.trim();
-    if (!teks || menyimpanBayar) return;
-
-    if (menyimpanCek) {
-      setTimeout(kirimBayar, 50);
-      return;
-    }
+    if (!teks) return;
 
     const nominalAngka = Number(teks.replace(/[^0-9]/g, ''));
     if (!nominalAngka) return;
 
-    // Input bayar selalu dalam ribuan: 50 -> 50.000, 1.100 -> 1.100.000
-    const bayarPenuh = BigInt(nominalAngka * 1000);
-    const target = targetBayar;
-    if (!target) {
+    const awal = targetBayar;
+    if (!awal) {
       setPesanGalat('Tidak ada cek yang menunggu pembayaran.');
       return;
     }
 
-    const cekId = target.id;
-    const salesNama = target.salesmanNama || 'Sales';
-    const tagihan = Number(target.nominal) - Number(target.dibayar);
-    const bayarRp = Number(bayarPenuh);
-    const kembali = bayarRp - tagihan;
-
-    // Kosongkan kotak bayar & kembalikan fokus ke kotak Cek seketika
-    bayarTeks = '';
-    inputCepatEl?.focus();
+    // Nominal yang dibayar: dibaca ULANG sesudah penungguan, sebab operator bisa
+    // menambah digit selagi barisnya menunggu id server.
+    let teksKini = teks;
     menyimpanBayar = true;
 
     try {
+      // Baris cek yang baru diketik belum punya id server (id sementara negatif).
+      // TUNGGU id itu — jangan meluncur ke baris lain: nominal yang diketik
+      // operator jelas ditujukan untuk baris yang baru ia isi.
+      let target = awal;
+      if (awal.id < 0n) {
+        bayarTungguId = awal.id;
+        try {
+          for (let i = 0; i < 130; i++) {
+            await new Promise((r) => setTimeout(r, 60));
+            const idServer = optimisKeServer[String(awal.id)];
+            if (idServer) {
+              const juga = cekTampil.find((c) => String(c.id) === idServer);
+              if (juga) { target = juga; break; }
+            }
+            if (!cekOptimis.some((o) => o.id === awal.id)) break; // batal tersimpan
+          }
+        } finally {
+          bayarTungguId = null;
+        }
+      }
+
+      // Baris yang dituju harus jelas. Kalau baris optimisnya ternyata batal
+      // tersimpan (simpan gagal) atau yang cocok baris lain: berhenti dengan
+      // pesan — JANGAN membayar cek lain yang nominalnya kebetulan sama.
+      if (awal.id < 0n && String(target.id) !== (optimisKeServer[String(awal.id)] ?? '')) {
+        setPesanGalat('Cek yang dituju belum tersimpan di server — isi ulang kolom Bayar.');
+        return;
+      }
+
+      teksKini = bayarTeks.trim() || teksKini;
+      const angkaKini = Number(teksKini.replace(/[^0-9]/g, ''));
+      if (!angkaKini) return;
+
+      // Input bayar selalu dalam ribuan: 50 -> 50.000, 1.100 -> 1.100.000
+      const bayarPenuh = BigInt(angkaKini * 1000);
+      const cekId = target.id;
+      const salesNama = target.salesmanNama || 'Sales';
+      const tagihan = Number(target.nominal) - Number(target.dibayar);
+      const bayarRp = Number(bayarPenuh);
+      const kembali = bayarRp - tagihan;
+
+      // Kosongkan kotak bayar & kembalikan fokus ke kotak Cek seketika
+      bayarTeks = '';
+      inputCepatEl?.focus();
+
       await conn?.reducers.catatBayarCek({
         cekId,
         outlet: OUTLET,
@@ -590,7 +688,7 @@
       setPesanPelunasan(salesNama, Number(target.nominal), bayarRp, Math.max(0, kembali));
     } catch (e: any) {
       setPesanGalat(`Gagal bayar: ${e.message || e}`);
-      bayarTeks = teks;
+      bayarTeks = teksKini;
       inputBayarEl?.focus();
     } finally {
       menyimpanBayar = false;
@@ -601,6 +699,7 @@
   // LOGIKA DOUBLE CLICK EDIT INLINE & CHECKBOX KREDIT
   // =========================================================================
   async function mulaiEdit(c: any, kolom: 'salesman' | 'nominal' | 'dibayar') {
+    if (c.optimis) return; // barisnya belum ada di server (id sementara)
     let nilai = '';
     if (kolom === 'salesman') {
       nilai = c.salesmanNama || c.salesman;
@@ -660,6 +759,7 @@
 
   async function toggleKredit(c: any, ceklis: boolean) {
     if (butuhKoneksi("mengubah tanda kredit")) return;
+    if (c.optimis) return; // barisnya belum ada di server (id sementara)
     try {
       await conn?.reducers.updateDeklarasiCek({
         id: c.id,
@@ -689,8 +789,9 @@
     }
   }
 
-  // Ringkasan Rekonsiliasi
-  const ringkasan = $derived(hitungRingkasan(daftarCek, daftarPenjualan));
+  // Ringkasan Rekonsiliasi (dari cekTampil: cek yang baru diketik ikut terhitung
+  // SEKETIKA, angka "Selisih" tidak menunggu ~2 detik perjalanan ke server)
+  const ringkasan = $derived(hitungRingkasan(cekTampil, daftarPenjualan));
 
   // ---- Galeri bukti gambar -------------------------------------------------
   // Kunci dari sisi ERP: 'cek-{outlet}-{tanggal}-{id}' (huruf kecil). Data lama
@@ -790,7 +891,7 @@
   // Filter daftar cek untuk tabel
   const cekTersaring = $derived.by(() => {
     const q = cariTeks.trim().toLowerCase();
-    return daftarCek.filter((c) => {
+    return cekTampil.filter((c) => {
       if (filterStatus === 'beda_bayar' && bedaBayar(c) === null) return false;
       if (filterStatus === 'kredit' && !c.kredit) return false;
       if (filterStatus === 'belum_input' && (c.orderNo || c.status !== 'Belum Cocok')) return false;
@@ -1101,8 +1202,15 @@
           onfocus={() => { isBayarFocused = true; }}
           onblur={() => { isBayarFocused = false; }}
           onkeydown={(e) => {
+            // Tab di kolom Bayar kembali ke kolom Cek: kedua kolom ini dipakai
+            // bergantian sepanjang hari, jadi Tab menutup lingkarannya — bukan
+            // melompat ke papan penjual/tombol di sebelah kanan.
             if (e.key === 'Enter') kirimBayar();
             else if (e.key === 'ArrowLeft') onKeyLeftBayar(e);
+            else if (e.key === 'Tab') {
+              e.preventDefault();
+              inputCepatEl?.focus();
+            }
           }}
           type="text"
           inputmode="numeric"
@@ -1210,7 +1318,7 @@
       >
         <ListChecks size={15} strokeWidth={1.5} class={tabAktif === 'cek' ? 'text-accent' : 'text-muted'} />
         Daftar cek
-        <span class="font-mono text-[12px] text-muted">{daftarCek.length}</span>
+        <span class="font-mono text-[12px] text-muted">{cekTampil.length}</span>
       </button>
       {#if jmlCekLama > 0}
         <button
@@ -1292,7 +1400,15 @@
                 <tr
                   class="align-top transition-colors {isTarget ? 'bg-accent/5 ring-1 ring-inset ring-accent/30' : flashCekId === c.id ? 'animate-row-in' : 'hover:bg-raised/40'}"
                 >
-                  <td class="px-3 py-2.5 font-mono text-[12px] text-muted">{c.jam.slice(0, 5)}</td>
+                  <td class="px-3 py-2.5 font-mono text-[12px] text-muted">
+                    {c.jam.slice(0, 5)}{#if c.optimis}<Hourglass
+                        size={11}
+                        strokeWidth={1.5}
+                        data-ui="barisOptimis"
+                        class="ml-1 inline align-[-1px] text-accent"
+                        title="Baru diketik — menunggu tersimpan di server"
+                      />{/if}
+                  </td>
 
                   <!-- 1. PENJUAL (klik 2x edit -> pilih dari daftar) -->
                   <td
@@ -1390,9 +1506,10 @@
                     <input
                       type="checkbox"
                       checked={c.kredit}
+                      disabled={c.optimis}
                       onchange={(e) => toggleKredit(c, (e.target as HTMLInputElement).checked)}
-                      class="h-4 w-4 cursor-pointer rounded border-line2 align-middle accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                      title="Tandai kredit (tidak ikut ditunggu di kotak bayar)"
+                      class="h-4 w-4 cursor-pointer rounded border-line2 align-middle accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-40"
+                      title={c.optimis ? 'Baris baru — tunggu tersimpan di server' : 'Tandai kredit (tidak ikut ditunggu di kotak bayar)'}
                     />
                   </td>
 
@@ -1437,14 +1554,16 @@
                   </td>
 
                   <td class="px-3 py-2.5 text-right">
-                    <button
-                      onclick={() => hapusCek(c.id)}
-                      class="rounded-md p-1 text-ink2 transition-colors hover:bg-bad/8 hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                      title="Hapus baris cek"
-                      aria-label="Hapus baris cek"
-                    >
-                      <Trash size={15} strokeWidth={1.5} />
-                    </button>
+                    {#if !c.optimis}
+                      <button
+                        onclick={() => hapusCek(c.id)}
+                        class="rounded-md p-1 text-ink2 transition-colors hover:bg-bad/8 hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        title="Hapus baris cek"
+                        aria-label="Hapus baris cek"
+                      >
+                        <Trash size={15} strokeWidth={1.5} />
+                      </button>
+                    {/if}
                   </td>
                 </tr>
 

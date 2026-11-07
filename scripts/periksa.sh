@@ -55,3 +55,13 @@ if ! bash scripts/uji_cocok.sh >/tmp/periksa-cocok.log 2>&1; then
   exit 1
 fi
 tail -1 /tmp/periksa-cocok.log | sed 's/^/OK — uji pencocokan: /'
+
+# UJI BARIS OPTIMIS (7 Nov 2026). Baris cek yang baru diketik tampil seketika
+# (id sementara negatif) dan harus diserap baris server yang sepadan — kalau
+# tidak, layar menampilkan cek kembar atau barisnya hilang.
+if ! bash scripts/uji_optimis.sh >/tmp/periksa-optimis.log 2>&1; then
+  echo "GAGAL — uji baris optimis tidak lulus:"
+  tail -14 /tmp/periksa-optimis.log
+  exit 1
+fi
+tail -1 /tmp/periksa-optimis.log | sed 's/^/OK — uji baris optimis: /'
