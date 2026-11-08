@@ -18,7 +18,8 @@
   } from '@lucide/svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
-  import { rupiah, formatRibuan, uraiCek, hitungRingkasan, cocokOptimis } from './lib/cek';
+  import { rupiah, formatRibuan, uraiCek, hitungRingkasan } from './lib/cek';
+  import { buatIntake } from './lib/intake';
   import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
@@ -55,63 +56,46 @@
   let inputCepatEl = $state<HTMLInputElement | null>(null);
   let inputBayarEl = $state<HTMLInputElement | null>(null);
 
-  // BARIS OPTIMIS (7 Nov 2026). Baris cek dulu baru muncul ~2 detik sesudah
-  // Enter: satu-satunya sumber daftar adalah baris yang dikirim BALIK server
-  // lewat langganan (biaya tulis + langganan SpacetimeDB), jadi operator
-  // melihat inputnya "tidak masuk-masuk". Sekarang barisnya digambar SEKETIKA
-  // dengan id SEMENTARA yang negatif (id server selalu positif, autoIncrement)
-  // dan dibuang begitu baris server yang sepadan tiba.
+  // Cermin baris optimis dari module intake (lib/intake.ts). Baris cek yang baru
+  // diketik digambar SEKETIKA dengan id SEMENTARA yang negatif (id server selalu
+  // positif, autoIncrement) dan dibuang begitu baris server yang sepadan tiba.
+  // Module-nya sengaja TANPA runes supaya bisa diuji langsung di Node, jadi layar
+  // cukup mencerminkan apa yang dimilikinya.
   let cekOptimis = $state<any[]>([]);
-  // id sementara -> id server, dipakai menjaga pembayaran (lihat kirimBayar).
-  const optimisKeServer: Record<string, string> = {};
-  let urutOptimis = 0n;
+
+  const intake = buatIntake({
+    conn: () => conn,
+    status: () => statusKoneksi,
+    outlet: OUTLET,
+    tanggal,
+    cariNama: cariSalesmanAktif,
+    barisBerubah: (o) => { cekOptimis = o; },
+    barisBaru: (b) => triggerFlash(b.id),
+    barisServer: () => daftarCek,
+    terimaCek: () => {
+      // Isi kolomnya dikosongkan SEKARANG (state DAN DOM) supaya ketikan yang
+      // sama tidak bisa terkirim dua kali selagi Svelte menunggu giliran
+      // memperbarui DOM — kolom Cek dibaca apa adanya saat menyimpan.
+      cepatTeks = '';
+      if (inputCepatEl) inputCepatEl.value = '';
+      inputBayarEl?.focus();
+    },
+    mulaiBayar: () => {
+      bayarTeks = '';
+      if (inputBayarEl) inputBayarEl.value = '';
+      inputCepatEl?.focus();
+    },
+    antrean: { daftar: () => antrean.daftar, tambah: antreTambah, buang: antreBuang },
+    acak: () => crypto.randomUUID?.() ?? String(Date.now() + Math.random()),
+    tidur: (ms) => new Promise((selesai) => setTimeout(selesai, ms)),
+  });
 
   // Yang digambar layar: baris optimis lebih dulu (paling baru), lalu baris server.
   const cekTampil = $derived([...cekOptimis, ...daftarCek]);
 
-  function barisOptimis(jam: string, salesman: string, nominal: bigint, tipe: string): any {
-    return {
-      id: --urutOptimis, // negatif & menurun = id sementara
-      optimis: true,
-      cekid: '',
-      outlet: OUTLET,
-      tanggal,
-      jam,
-      salesman,
-      salesmanNama: salesman,
-      nominal,
-      dibayar: 0n,
-      tipe,
-      kredit: false,
-      status: 'Belum Cocok',
-      orderNo: '',
-      customer: '',
-      shortUrl: '',
-    };
-  }
-
-  function tambahOptimis(o: any) {
-    cekOptimis = [...cekOptimis, o];
-    triggerFlash(o.id);
-  }
-
-  function buangOptimis(id: bigint) {
-    cekOptimis = cekOptimis.filter((o) => o.id !== id);
-  }
-
-  // Dipanggil dari refreshData(): baris server yang sudah tiba menyerap baris
-  // optimis yang sepadan (kunci alaminya sama — lihat cocokOptimis).
-  function rekonsiliasiOptimis() {
-    if (cekOptimis.length === 0) return;
-    const { sisa, peta } = cocokOptimis(cekOptimis, daftarCek);
-    for (const k of Object.keys(peta)) optimisKeServer[k] = peta[k];
-    if (sisa.length !== cekOptimis.length) cekOptimis = sisa;
-  }
-
   // Status fokus kursor di bayar untuk sorot baris target
   let isBayarFocused = $state(false);
 
-  let menyimpanCek = $state(false);
   let jmlCekLama = $state(0);
   // window.confirm()/alert() DIABAIKAN WebView Android (langsung balik false /
   // tidak tampil), sehingga tombol hapus & sapu cek lama terasa mati.
@@ -129,11 +113,6 @@
       dialog = { teks, hanyaOk: true, jawab: () => { dialog = null; selesai(); } };
     });
   }
-  let menyimpanBayar = $state(false);
-  // Baris cek yang baru diketik tampil seketika, tetapi id server-nya menyusul
-  // (~2 detik). Ini id baris yang SEDANG ditunggu pembayarannya, sekaligus
-  // penjaga agar tidak ada dua rantai tunggu yang membayar dua kali.
-  let bayarTungguId: bigint | null = null;
 
   // Keterangan pelunasan di samping input bayar (permanen tidak hilang setelah 5 detik)
   let pesanPelunasan = $state<{ sales: string; nominal: number; bayar: number; kembali: number } | null>(null);
@@ -453,7 +432,7 @@
 
       // Baris server yang baru tiba menyerap baris optimisnya → tidak ada baris
       // kembar di layar, dan id sementara diganti id server.
-      rekonsiliasiOptimis();
+      intake.rekonsiliasi(daftarCek);
     } catch (e) {
       console.error('Error membaca tabel:', e);
     }
@@ -512,81 +491,30 @@
   async function kirimCepat() {
     // Sumber kebenaran = isi kolom Cek seperti yang dilihat kasir.
     const teksMentah = inputCepatEl?.value ?? cepatTeks;
-    const tafsir = uraiCek(teksMentah, cariSalesmanAktif);
-    if (tafsir.jenis === 'kosong' || menyimpanCek) return;
+    const hasil = await intake.simpan(teksMentah);
 
-    // Parser SINTAS (bukan pratinjau): kode salesman tak dikenal tetap dicatat,
-    // yang penting input operator tidak pernah hilang. Kalau grammar belum utuh,
-    // kasir diberi tahu — jangan diam-diam tidak menyimpan apa pun.
-    if (!tafsir.lengkap) {
-      setPesanGalat(tafsir.teks || 'Format: nominal + kode + tipe (mis. 25m1)');
+    if (hasil.jenis === 'kosong') return;
+    if (hasil.jenis === 'belum_lengkap') {
+      setPesanGalat(hasil.pesan || 'Format: nominal + kode + tipe (mis. 25m1)');
       return;
     }
 
-    const teks = teksMentah.trim().toLowerCase();
-    const nominal = BigInt(tafsir.nominal ?? 0);
-    const kode = tafsir.kode ?? '';
-    const tipe = tafsir.tipe ?? 'Ecer';
-
-    // Pindahkan kursor SEKETIKA (0ms) ke kotak Bayar
-    cepatTeks = '';
-    inputBayarEl?.focus();
-
-    const salesmanNama = cariSalesmanAktif(kode) || kode.toUpperCase();
-    const salesman = salesmanNama;
-
-    const jam = new Date().toTimeString().slice(0, 8);
-
-    // Barisnya masuk daftar SEKARANG — tidak menunggu perjalanan ke server.
-    const optimis = barisOptimis(jam, salesman, nominal, tipe);
-
-    // Internet putus: cek tetap dicatat, disimpan di HP dan dikirim ulang
-    // otomatis saat tersambung (server idempoten, jadi tidak dobel). Barisnya
-    // tetap tampil (bertanda belum ke server) supaya operator melihat inputnya.
-    if (statusKoneksi !== 'terhubung' || !conn?.reducers?.tambahDeklarasiCek) {
-      tambahOptimis(optimis);
-      antreTambah({
-        ref: (crypto.randomUUID?.() ?? String(Date.now() + Math.random())),
-        outlet: OUTLET,
-        tanggal,
-        jam,
-        salesman,
-        salesmanNama,
-        nominal: String(nominal),
-        tipe,
-        at: Date.now(),
-      });
-      setPesanGalat(`Tersimpan di HP (${antrean.daftar.length} belum terkirim) — dikirim otomatis begitu tersambung.`);
+    // Barisnya sudah masuk daftar (baris optimis), jadi inputnya boleh hilang
+    // dari kolom Cek — kolomnya sudah dikosongkan module intake (terimaCek).
+    if (hasil.jenis === 'antre') {
+      setPesanGalat(`Tersimpan di HP (${hasil.belumTerkirim} belum terkirim) — dikirim otomatis begitu tersambung.`);
       return;
     }
 
-    tambahOptimis(optimis);
-    menyimpanCek = true;
-
-    try {
-      await conn.reducers.tambahDeklarasiCek({
-        outlet: OUTLET,
-        tanggal,
-        jam,
-        salesman,
-        salesmanNama,
-        nominal,
-        tipe,
-        kredit: false,
-        dibayar: 0n,
-      });
-
-      if (bayarTeks.trim()) {
-        onInputBayar();
-      }
-    } catch (e: any) {
-      buangOptimis(optimis.id); // barisnya tidak jadi ada di server
-      setPesanGalat(`Gagal simpan cek: ${e.message || e}`);
-      cepatTeks = teks;
+    if (hasil.jenis === 'gagal') {
+      setPesanGalat(`Gagal simpan cek: ${hasil.pesan}`);
+      cepatTeks = teksMentah;
       inputCepatEl?.focus();
-    } finally {
-      menyimpanCek = false;
+      return;
     }
+
+    // Tersimpan: kalau kolom Bayar sudah diisi, bayar baris itu sekarang.
+    if (bayarTeks.trim()) onInputBayar();
   }
 
   // =========================================================================
@@ -615,91 +543,32 @@
   }
 
   async function kirimBayar() {
-    // SATU pembayaran pada satu waktu. Rantai kedua — dari ketikan berikutnya
-    // atau dari kirimCepat setelah cek tersimpan — tidak boleh membayar baris
-    // yang sama dua kali. Dulu penjaganya baru dipasang SESUDAH baris cek baru
-    // menunggu id server, jadi rantai kedua lolos dan nominalnya masuk dua kali.
-    if (menyimpanBayar) return;
-    if (butuhKoneksi("menghitung pembayaran")) return;
-    const teks = bayarTeks.trim();
-    if (!teks) return;
+    // Kolom Bayar dibaca apa adanya; module intake yang menjaga satu pembayaran
+    // pada satu waktu, menunggu id server, dan menghitung kembalian.
+    const hasil = await intake.bayar(targetBayar, inputBayarEl?.value ?? bayarTeks);
 
-    const nominalAngka = Number(teks.replace(/[^0-9]/g, ''));
-    if (!nominalAngka) return;
-
-    const awal = targetBayar;
-    if (!awal) {
+    if (hasil.jenis === 'kosong') return;
+    if (hasil.jenis === 'tanpa_target') {
       setPesanGalat('Tidak ada cek yang menunggu pembayaran.');
       return;
     }
-
-    // Nominal yang dibayar: dibaca ULANG sesudah penungguan, sebab operator bisa
-    // menambah digit selagi barisnya menunggu id server.
-    let teksKini = teks;
-    menyimpanBayar = true;
-
-    try {
-      // Baris cek yang baru diketik belum punya id server (id sementara negatif).
-      // TUNGGU id itu — jangan meluncur ke baris lain: nominal yang diketik
-      // operator jelas ditujukan untuk baris yang baru ia isi.
-      let target = awal;
-      if (awal.id < 0n) {
-        bayarTungguId = awal.id;
-        try {
-          for (let i = 0; i < 130; i++) {
-            await new Promise((r) => setTimeout(r, 60));
-            const idServer = optimisKeServer[String(awal.id)];
-            if (idServer) {
-              const juga = cekTampil.find((c) => String(c.id) === idServer);
-              if (juga) { target = juga; break; }
-            }
-            if (!cekOptimis.some((o) => o.id === awal.id)) break; // batal tersimpan
-          }
-        } finally {
-          bayarTungguId = null;
-        }
-      }
-
-      // Baris yang dituju harus jelas. Kalau baris optimisnya ternyata batal
-      // tersimpan (simpan gagal) atau yang cocok baris lain: berhenti dengan
-      // pesan — JANGAN membayar cek lain yang nominalnya kebetulan sama.
-      if (awal.id < 0n && String(target.id) !== (optimisKeServer[String(awal.id)] ?? '')) {
-        setPesanGalat('Cek yang dituju belum tersimpan di server — isi ulang kolom Bayar.');
-        return;
-      }
-
-      teksKini = bayarTeks.trim() || teksKini;
-      const angkaKini = Number(teksKini.replace(/[^0-9]/g, ''));
-      if (!angkaKini) return;
-
-      // Input bayar selalu dalam ribuan: 50 -> 50.000, 1.100 -> 1.100.000
-      const bayarPenuh = BigInt(angkaKini * 1000);
-      const cekId = target.id;
-      const salesNama = target.salesmanNama || 'Sales';
-      const tagihan = Number(target.nominal) - Number(target.dibayar);
-      const bayarRp = Number(bayarPenuh);
-      const kembali = bayarRp - tagihan;
-
-      // Kosongkan kotak bayar & kembalikan fokus ke kotak Cek seketika
-      bayarTeks = '';
-      inputCepatEl?.focus();
-
-      await conn?.reducers.catatBayarCek({
-        cekId,
-        outlet: OUTLET,
-        tanggal,
-        nominalBayar: bayarPenuh,
-      });
-
-      // Keterangan pelunasan permanen di samping input bayar
-      setPesanPelunasan(salesNama, Number(target.nominal), bayarRp, Math.max(0, kembali));
-    } catch (e: any) {
-      setPesanGalat(`Gagal bayar: ${e.message || e}`);
-      bayarTeks = teksKini;
-      inputBayarEl?.focus();
-    } finally {
-      menyimpanBayar = false;
+    if (hasil.jenis === 'butuh_koneksi') {
+      setPesanGalat('Butuh koneksi untuk menghitung pembayaran. Cek baru tetap bisa diinput (disimpan di HP).');
+      return;
     }
+    if (hasil.jenis === 'tunggu_id') {
+      setPesanGalat('Cek yang dituju belum tersimpan di server — isi ulang kolom Bayar.');
+      inputBayarEl?.focus();
+      return;
+    }
+    if (hasil.jenis === 'gagal') {
+      setPesanGalat(`Gagal bayar: ${hasil.pesan}`);
+      inputBayarEl?.focus();
+      return;
+    }
+
+    // Keterangan pelunasan permanen di samping input bayar.
+    setPesanPelunasan(hasil.sales, hasil.nominal, hasil.bayar, hasil.kembali);
   }
 
   // =========================================================================
@@ -967,37 +836,10 @@
     return true;
   }
 
-  // Kirim isi antrean HP ke server (berurutan, berhenti saat gagal).
-  let sedangKirimAntrean = false;
+  // Kirim isi antrean HP ke server (berurutan, berhenti saat gagal) — jalurnya
+  // kini di module intake, di sini hanya pesan ke kasir.
   async function kirimAntrean() {
-    if (sedangKirimAntrean) return;
-    if (statusKoneksi !== 'terhubung' || !conn?.reducers?.tambahDeklarasiCek) return;
-    if (antrean.daftar.length === 0) return;
-    sedangKirimAntrean = true;
-    let terkirim = 0;
-    try {
-      for (const e of [...antrean.daftar]) {
-        try {
-          await conn.reducers.tambahDeklarasiCek({
-            outlet: e.outlet,
-            tanggal: e.tanggal,
-            jam: e.jam,
-            salesman: e.salesman,
-            salesmanNama: e.salesmanNama,
-            nominal: BigInt(e.nominal),
-            tipe: e.tipe,
-            kredit: false,
-            dibayar: 0n,
-          });
-          antreBuang(e.ref);
-          terkirim++;
-        } catch {
-          break; // sisanya dicoba lagi pada putaran berikutnya
-        }
-      }
-    } finally {
-      sedangKirimAntrean = false;
-    }
+    const terkirim = await intake.kirimAntrean();
     if (terkirim > 0) {
       setPesanGalat(`${terkirim} cek dari HP terkirim.${antrean.daftar.length ? ` Sisa ${antrean.daftar.length} menunggu.` : ''}`);
     }

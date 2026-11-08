@@ -75,3 +75,14 @@ if ! bash scripts/uji_optimis.sh >/tmp/periksa-optimis.log 2>&1; then
   exit 1
 fi
 tail -1 /tmp/periksa-optimis.log | sed 's/^/OK — uji baris optimis: /'
+
+# UJI MODULE INTAKE (8 Nov 2026). Jalur tulis cek & bayar pindah dari App.svelte
+# ke lib/intake.ts; ujinya memakai adapter reducer PALSU, jadi seam-nya nyata.
+# Dijaga di sana: pembayaran tidak dobel, penungguan id server tidak menyerobot
+# cek lain yang nominalnya sama, dan antrean offline berhenti pada gagal pertama.
+if ! bash scripts/uji_intake.sh >/tmp/periksa-intake.log 2>&1; then
+  echo "GAGAL — uji module intake tidak lulus:"
+  tail -14 /tmp/periksa-intake.log
+  exit 1
+fi
+tail -1 /tmp/periksa-intake.log | sed 's/^/OK — uji intake: /'
