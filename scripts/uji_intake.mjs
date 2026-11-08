@@ -21,8 +21,9 @@ const TANGGAL = '2026-11-08';
 const NAMA = (k) => ({ m: 'Melaty', s: 'Sjb', n: 'Neman' }[k] ?? '');
 
 /** Dunia uji: adapter reducer palsu + baris server yang bisa ditumbuhkan. */
-function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = false, lambatBayar = 0, gantungSimpan = false } = {}) {
-  const panggilan = { tambah: [], bayar: [] };
+function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = false, lambatBayar = 0, gantungSimpan = false, gagalUbah = false } = {}) {
+  const panggilan = { tambah: [], bayar: [], ubah: [], hapus: [], sapu: [] };
+  let log = [];
   const antreanDaftar = [];
   const server = [];
   let idServer = 0;
@@ -48,6 +49,16 @@ function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = fal
           salesmanNama: p.salesmanNama, nominal: p.nominal, dibayar: 0n, tipe: p.tipe,
           kredit: false, status: 'Belum Cocok', orderNo: '', customer: '',
         });
+      },
+      async updateDeklarasiCek(p) {
+        panggilan.ubah.push(p);
+        if (gagalUbah) throw new Error('ubah ditolak');
+      },
+      async hapusDeklarasiCek(p) {
+        panggilan.hapus.push(p);
+      },
+      async bersihkanCekLama(p) {
+        panggilan.sapu.push(p);
       },
       async catatBayarCek(p) {
         bayarBerjalan++;
@@ -78,6 +89,7 @@ function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = fal
     },
     acak: () => 'ref-' + (antreanDaftar.length + 1),
     tidur: () => Promise.resolve(),
+    bacaLogPurge: () => log,
   });
   return {
     intake,
@@ -87,6 +99,8 @@ function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = fal
     cermin: () => cermin,
     peristiwa: () => [...peristiwa],
     setStatus: (s) => { statusKini = s; },
+    setGagalUbah: (v) => { gagalUbah = v; },
+    setLog: (l) => { log = l; },
     puncakBayar: () => bayarPuncak,
     /** Baris server seperti yang dilihat layar (diurut seperti refreshData). */
     rekonsiliasi: () => intake.rekonsiliasi(server),
@@ -220,6 +234,81 @@ function buatDunia({ status = 'terhubung', gagalSimpan = false, gagalBayar = fal
     [await intakeGagal.kirimAntrean(), d.antrean.length], [0, 2]);
   tolak = false;
   cek('antrean dicoba lagi: dua terkirim', await intakeGagal.kirimAntrean(), 2);
+}
+
+// ---------------------------------------------------------------- (f) ubah & hapus
+{
+  const d = buatDunia();
+  d.server.push({
+    id: 12n, outlet: 'Braka', tanggal: TANGGAL, jam: '09:00:00', salesman: 'm',
+    salesmanNama: 'Melaty', nominal: 25000n, dibayar: 5000n, tipe: 'Ecer', kredit: false,
+  });
+  const baris = d.server[0];
+  const hasil = await d.intake.ubah(baris, { nominal: 40000n });
+  cek('ubah: reducer menerima SELURUH nilai, bukan hanya tambalan',
+    [hasil.jenis, d.panggilan.ubah.length, String(d.panggilan.ubah[0].nominal), String(d.panggilan.ubah[0].dibayar), d.panggilan.ubah[0].tipe, d.panggilan.ubah[0].kredit],
+    ['ok', 1, '40000', '5000', 'Ecer', false]);
+  await d.intake.ubah(baris, { kredit: true, salesmanNama: 'Neman', salesman: 'Neman' });
+  cek('ubah kredit: hanya kolom yang diubah, sisanya tetap',
+    [d.panggilan.ubah[1].kredit, d.panggilan.ubah[1].salesmanNama, String(d.panggilan.ubah[1].nominal)],
+    [true, 'Neman', '25000']);
+  const hasilHapus = await d.intake.hapus(baris);
+  cek('hapus: reducer menerima id barisnya', [hasilHapus.jenis, String(d.panggilan.hapus[0].id)], ['ok', '12']);
+}
+{
+  const d = buatDunia();
+  await d.intake.simpan('25m1');
+  const optimis = d.intake.optimis()[0];
+  cek('ubah baris optimis: ditolak (belum ada di server)', (await d.intake.ubah(optimis, { nominal: 1n })).jenis, 'belum_di_server');
+  cek('ubah baris optimis: reducer tidak dipanggil', d.panggilan.ubah.length, 0);
+  cek('hapus baris optimis: ditolak', (await d.intake.hapus(optimis)).jenis, 'belum_di_server');
+}
+{
+  const d = buatDunia({ status: 'terputus' });
+  const hasil = await d.intake.ubah({ id: 1n, optimis: false }, { nominal: 1n });
+  cek('ubah tanpa koneksi: ditolak dengan alasan, TIDAK diantrekan',
+    [hasil.jenis, hasil.aksi, d.panggilan.ubah.length], ['butuh_koneksi', 'mengubah cek', 0]);
+  cek('hapus tanpa koneksi: ditolak', (await d.intake.hapus({ id: 1n })).aksi, 'menghapus cek');
+}
+{
+  const d = buatDunia();
+  d.setGagalUbah(true);
+  const hasil = await d.intake.ubah(d.server[0] ?? { id: 5n }, { nominal: 1n });
+  cek('ubah gagal: pesan dari server diteruskan', hasil.jenis, 'gagal');
+}
+
+// ---------------------------------------------------------------- (g) sapu cek lama
+{
+  const d = buatDunia();
+  cek('sapu: tersedia saat tersambung', d.intake.adaSapu(), true);
+  const uji = await d.intake.bersihkanCekLama(true);
+  cek('sapu uji: reducer menerima dryRun true', [uji.jenis, d.panggilan.sapu[0].dryRun], ['ok', true]);
+  const jalan = await d.intake.bersihkanCekLama(false);
+  cek('sapu jalan: reducer menerima dryRun false', [jalan.jenis, d.panggilan.sapu[1].dryRun], ['ok', false]);
+}
+{
+  const kosong = buatIntake({
+    conn: () => ({ reducers: {} }),
+    status: () => 'terhubung',
+    outlet: 'Braka', tanggal: TANGGAL, cariNama: NAMA,
+    barisBerubah: () => {}, barisBaru: () => {}, barisServer: () => [],
+    terimaCek: () => {}, mulaiBayar: () => {},
+    antrean: { daftar: () => [], tambah: () => {}, buang: () => {} },
+    acak: () => 'x', tidur: () => Promise.resolve(), bacaLogPurge: () => [],
+  });
+  cek('sapu: bundel lama tanpa reducer = tidak tersedia', kosong.adaSapu(), false);
+  cek('sapu: ditolak dengan alasan yang jelas', (await kosong.bersihkanCekLama(true)).jenis, 'reducer_tidak_ada');
+}
+{
+  const d = buatDunia();
+  d.setLog([
+    { jenis: 'purge-cek', totalRows: 7, lastSyncedAt: { microsSinceUnixEpoch: 100 } },
+    { jenis: 'lain', totalRows: 999, lastSyncedAt: { microsSinceUnixEpoch: 200 } },
+    { jenis: 'purge-cek', totalRows: 3, lastSyncedAt: { microsSinceUnixEpoch: 150 } },
+  ]);
+  cek('jejak uji: diambil yang TERBARU, dan hanya jenis purge-cek', d.intake.logPurgeTerakhir(), 3);
+  d.setLog([]);
+  cek('jejak uji: kosong = 0', d.intake.logPurgeTerakhir(), 0);
 }
 
 console.log(`\n${lulus} lulus, ${gagal} gagal`);

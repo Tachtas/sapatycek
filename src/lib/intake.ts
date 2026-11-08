@@ -30,6 +30,23 @@ export type HasilBayar =
   | { jenis: 'butuh_koneksi' }
   | { jenis: 'gagal'; pesan: string };
 
+/** Hasil operasi yang mengubah/menghapus cek yang SUDAH ada di server. */
+export type HasilTulis =
+  | { jenis: 'ok' }
+  | { jenis: 'belum_di_server' }
+  | { jenis: 'butuh_koneksi'; aksi: string }
+  | { jenis: 'reducer_tidak_ada' }
+  | { jenis: 'gagal'; pesan: string };
+
+/** Nilai baru untuk satu baris cek; sisanya diambil dari baris aslinya. */
+export type UbahCek = {
+  nominal?: bigint;
+  dibayar?: bigint;
+  kredit?: boolean;
+  salesman?: string;
+  salesmanNama?: string;
+};
+
 export type BarisAntrean = {
   ref: string;
   outlet: string;
@@ -70,6 +87,8 @@ export type Deps = {
   acak: () => string;
   /** Tunggu (uji memakai versi tanpa waktu nyata). */
   tidur: (ms: number) => Promise<void>;
+  /** Baca baris jejak sinkron (sync_log) — dipakai sesudah sapu cek lama diuji. */
+  bacaLogPurge: () => any[];
 };
 
 export type Intake = {
@@ -82,6 +101,15 @@ export type Intake = {
   /** Dipanggil sesudah daftar baris server berubah. */
   rekonsiliasi: (server: any[]) => void;
   kirimAntrean: () => Promise<number>;
+  /** Ubah cek yang sudah ada di server (nominal/dibayar/penjual/kredit). */
+  ubah: (cek: any, patch: UbahCek) => Promise<HasilTulis>;
+  hapus: (cek: any) => Promise<HasilTulis>;
+  /** Apakah reducer sapu cek lama tersedia (bundel lama belum punya). */
+  adaSapu: () => boolean;
+  /** Sapu cek hari lama. dryRun = true → uji, tidak menghapus apa pun. */
+  bersihkanCekLama: (dryRun: boolean) => Promise<HasilTulis>;
+  /** Jumlah baris yang siap dibuang menurut jejak uji terakhir. */
+  logPurgeTerakhir: () => number;
 };
 
 // Batas penungguan id server: 130 x 60ms ≈ 8 detik (perjalanan tulis nyata ~2s).
@@ -318,6 +346,80 @@ export function buatIntake(deps: Deps): Intake {
     return terkirim;
   }
 
+  // ---- cek yang SUDAH ada di server: ubah, hapus, sapu cek lama -------------
+  // Ini jalur tulis paling berbahaya (menyentuh uang yang sudah tercatat), jadi
+  // sengaja TIDAK diantrekan saat koneksi putus: lebih baik ditolak dengan pesan
+  // daripada dikirim ulang belakangan dan terhitung dua kali.
+
+  function bisaTulis(aksi: string): HasilTulis | null {
+    if (deps.status() !== 'terhubung' || !deps.conn()?.reducers) return { jenis: 'butuh_koneksi', aksi };
+    return null;
+  }
+
+  async function ubah(cek: any, patch: UbahCek): Promise<HasilTulis> {
+    if (cek?.optimis) return { jenis: 'belum_di_server' }; // id sementara
+    const ditolak = bisaTulis('mengubah cek');
+    if (ditolak) return ditolak;
+    try {
+      await deps.conn().reducers.updateDeklarasiCek({
+        id: cek.id,
+        // Yang tidak disebut patch diambil dari baris aslinya — reducer menerima
+        // SELURUH nilai, bukan tambalan.
+        nominal: patch.nominal ?? cek.nominal,
+        dibayar: patch.dibayar ?? cek.dibayar,
+        tipe: cek.tipe,
+        kredit: patch.kredit ?? cek.kredit,
+        salesman: patch.salesman ?? cek.salesman,
+        salesmanNama: patch.salesmanNama ?? cek.salesmanNama,
+      });
+      return { jenis: 'ok' };
+    } catch (e: any) {
+      return { jenis: 'gagal', pesan: String(e?.message ?? e) };
+    }
+  }
+
+  async function hapus(cek: any): Promise<HasilTulis> {
+    if (cek?.optimis) return { jenis: 'belum_di_server' };
+    const ditolak = bisaTulis('menghapus cek');
+    if (ditolak) return ditolak;
+    try {
+      await deps.conn().reducers.hapusDeklarasiCek({ id: cek.id });
+      return { jenis: 'ok' };
+    } catch (e: any) {
+      return { jenis: 'gagal', pesan: String(e?.message ?? e) };
+    }
+  }
+
+  function adaSapu(): boolean {
+    return deps.status() === 'terhubung' && Boolean(deps.conn()?.reducers?.bersihkanCekLama);
+  }
+
+  async function bersihkanCekLama(dryRun: boolean): Promise<HasilTulis> {
+    if (!adaSapu()) return { jenis: 'reducer_tidak_ada' };
+    try {
+      await deps.conn().reducers.bersihkanCekLama({ dryRun });
+      return { jenis: 'ok' };
+    } catch (e: any) {
+      return { jenis: 'gagal', pesan: String(e?.message ?? e) };
+    }
+  }
+
+  /**
+   * Jumlah baris siap dibuang menurut jejak uji TERAKHIR (baris sync_log dengan
+   * jenis 'purge-cek', diurut waktu lalu diambil yang paling baru).
+   */
+  function logPurgeTerakhir(): number {
+    const log = (deps.bacaLogPurge?.() ?? [])
+      .filter((l: any) => String(l?.jenis ?? '').startsWith('purge-cek'))
+      .sort(
+        (a: any, b: any) =>
+          Number(a?.lastSyncedAt?.microsSinceUnixEpoch ?? 0) -
+          Number(b?.lastSyncedAt?.microsSinceUnixEpoch ?? 0)
+      )
+      .pop();
+    return Number(log?.totalRows ?? 0);
+  }
+
   return {
     optimis: () => cekOptimis,
     peta: () => ({ ...optimisKeServer }),
@@ -325,5 +427,10 @@ export function buatIntake(deps: Deps): Intake {
     bayar,
     rekonsiliasi,
     kirimAntrean,
+    ubah,
+    hapus,
+    adaSapu,
+    bersihkanCekLama,
+    logPurgeTerakhir,
   };
 }

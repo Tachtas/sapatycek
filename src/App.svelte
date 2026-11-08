@@ -16,7 +16,7 @@
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
   import { rupiah, formatRibuan, uraiCek, hitungRingkasan } from './lib/cek';
-  import { buatIntake, type StatusKoneksi } from './lib/intake';
+  import { buatIntake, type StatusKoneksi, type UbahCek } from './lib/intake';
   import { buatKoneksi, type StatusSesi } from './lib/koneksi';
   import {
     bedaBayarCek,
@@ -100,6 +100,7 @@
     antrean: { daftar: () => antrean.daftar, tambah: antreTambah, buang: antreBuang },
     acak: () => crypto.randomUUID?.() ?? String(Date.now() + Math.random()),
     tidur: (ms) => new Promise((selesai) => setTimeout(selesai, ms)),
+    bacaLogPurge: () => koneksi.bacaLogPurge(),
   });
 
   // Sambungan & sesi: seluruh urutan menyambung (klaim akun → langganan → baca
@@ -495,7 +496,6 @@
   }
 
   async function simpanEdit(c: any, nilaiBaru: string) {
-    if (butuhKoneksi("mengubah cek")) return;
     if (!selEdit || selEdit.id !== c.id) return;
     const kolom = selEdit.kolom;
     // Nilainya datang dari komponen sel (Enter / pindah fokus / ketuk penjual),
@@ -503,70 +503,37 @@
     const nilai = String(nilaiBaru ?? '');
     selEdit = null;
 
-    let nominal = c.nominal;
-    let dibayar = c.dibayar;
-    let salesman = c.salesman;
-    let salesmanNama = c.salesmanNama;
-
+    // Hanya kolom yang diubah yang dikirim; sisanya diambil modul dari baris aslinya.
+    const patch: UbahCek = {};
     if (kolom === 'nominal') {
-      const ribuan = Number(nilai.replace(/[^0-9]/g, ''));   // tahan angka maupun teks
-      nominal = BigInt(ribuan * 1000);
+      patch.nominal = BigInt(Number(nilai.replace(/[^0-9]/g, '')) * 1000); // tahan angka maupun teks
     } else if (kolom === 'dibayar') {
-      const ribuan = Number(nilai.replace(/[^0-9]/g, ''));   // tahan angka maupun teks
-      dibayar = BigInt(ribuan * 1000);
+      patch.dibayar = BigInt(Number(nilai.replace(/[^0-9]/g, '')) * 1000);
     } else if (kolom === 'salesman') {
       const hasil = cariSalesmanAktif(nilai);
-      salesmanNama = hasil || nilai.trim();
-      salesman = salesmanNama;
+      patch.salesmanNama = hasil || nilai.trim();
+      patch.salesman = patch.salesmanNama;
     }
 
-    try {
-      await conn?.reducers.updateDeklarasiCek({
-        id: c.id,
-        nominal,
-        dibayar,
-        tipe: c.tipe,
-        kredit: c.kredit,
-        salesman,
-        salesmanNama,
-      });
-    } catch (err: any) {
-      setPesanGalat(`Gagal update: ${err.message || err}`);
-    } finally {
-      inputCepatEl?.focus();
-    }
+    const hasil = await intake.ubah(c, patch);
+    if (hasil.jenis === 'butuh_koneksi') pesanButuhKoneksi(hasil.aksi);
+    else if (hasil.jenis === 'gagal') setPesanGalat(`Gagal update: ${hasil.pesan}`);
+    inputCepatEl?.focus();
   }
 
   async function toggleKredit(c: any, ceklis: boolean) {
-    if (butuhKoneksi("mengubah tanda kredit")) return;
-    if (c.optimis) return; // barisnya belum ada di server (id sementara)
-    try {
-      await conn?.reducers.updateDeklarasiCek({
-        id: c.id,
-        nominal: c.nominal,
-        dibayar: c.dibayar,
-        tipe: c.tipe,
-        kredit: ceklis,
-        salesman: c.salesman,
-        salesmanNama: c.salesmanNama,
-      });
-    } catch (err: any) {
-      setPesanGalat(`Gagal ubah kredit: ${err.message || err}`);
-    } finally {
-      inputCepatEl?.focus();
-    }
+    const hasil = await intake.ubah(c, { kredit: ceklis });
+    if (hasil.jenis === 'butuh_koneksi') pesanButuhKoneksi(hasil.aksi);
+    else if (hasil.jenis === 'gagal') setPesanGalat(`Gagal ubah kredit: ${hasil.pesan}`);
+    inputCepatEl?.focus();
   }
 
-  async function hapusCek(id: bigint) {
-    if (butuhKoneksi("menghapus cek")) return;
+  async function hapusCek(c: any) {
     if (!(await konfirmasi('Hapus baris cek ini?'))) return;
-    try {
-      await conn?.reducers.hapusDeklarasiCek({ id });
-    } catch (err: any) {
-      setPesanGalat(`Gagal hapus: ${err.message || err}`);
-    } finally {
-      inputCepatEl?.focus();
-    }
+    const hasil = await intake.hapus(c);
+    if (hasil.jenis === 'butuh_koneksi') pesanButuhKoneksi(hasil.aksi);
+    else if (hasil.jenis === 'gagal') setPesanGalat(`Gagal hapus: ${hasil.pesan}`);
+    inputCepatEl?.focus();
   }
 
   // Ringkasan Rekonsiliasi (dari cekTampil: cek yang baru diketik ikut terhitung
@@ -646,10 +613,10 @@
 
   // Operasi yang mengubah/menghapus/membayar cek yang SUDAH ada di server
   // butuh koneksi — tidak diantrekan supaya uang tidak terhitung dua kali.
-  function butuhKoneksi(aksi: string): boolean {
-    if (statusKoneksi === 'terhubung' && conn?.reducers) return false;
+  // Pesan bakunya satu tempat; YANG memutuskan boleh-tidaknya menulis adalah
+  // lib/intake.ts (jalur tulis ke cek yang sudah ada tidak pernah diantrekan).
+  function pesanButuhKoneksi(aksi: string) {
     setPesanGalat(`Butuh koneksi untuk ${aksi}. Cek baru tetap bisa diinput (disimpan di HP).`);
-    return true;
   }
 
   // Kirim isi antrean HP ke server (berurutan, berhenti saat gagal) — jalurnya
@@ -662,9 +629,10 @@
   }
 
   // Cek hanya bermakna hari itu; baris hari lama dibuang. Dua langkah:
-  // uji (tidak menghapus) dulu, baru jalankan.
+  // uji (tidak menghapus) dulu, baru jalankan. Reducer & jejaknya ditangani
+  // lib/intake.ts; di sini hanya tanya-jawab dengan kasir.
   async function bersihkanCekLama() {
-    if (!conn?.reducers?.bersihkanCekLama) {
+    if (!intake.adaSapu()) {
       await info('Reducer belum tersedia — muat ulang halaman.');
       return;
     }
@@ -673,20 +641,25 @@
       return;
     }
     if (!(await konfirmasi(`Ada ${jmlCekLama} baris cek dari hari sebelumnya.\n\nJalankan UJI dulu (tidak menghapus apa pun)?`))) return;
-    try {
-      await conn.reducers.bersihkanCekLama({ dryRun: true });
-      await new Promise((r) => setTimeout(r, 900));
-      const log = Array.from((conn.db.syncLog?.iter?.() ?? []) as Iterable<any>)
-        .filter((l: any) => String(l.jenis ?? '').startsWith('purge-cek'))
-        .sort((a: any, b: any) => Number(a.lastSyncedAt?.microsSinceUnixEpoch ?? 0) - Number(b.lastSyncedAt?.microsSinceUnixEpoch ?? 0))
-        .pop();
-      const siap = Number(log?.totalRows ?? 0);
-      if (!(await konfirmasi(`Uji: ${siap} baris siap dibuang (jejak 'Belum Cocok' ditahan 7 hari).\n\nHapus sekarang?`))) return;
-      await conn.reducers.bersihkanCekLama({ dryRun: false });
-      await info(`Selesai: ${siap} baris cek hari lama dibuang.`);
-    } catch (e) {
-      await info('Gagal: ' + String((e as Error)?.message ?? e));
+
+    const uji = await intake.bersihkanCekLama(true);
+    if (uji.jenis === 'gagal' || uji.jenis === 'reducer_tidak_ada') {
+      await info('Gagal: ' + (uji.jenis === 'gagal' ? uji.pesan : 'reducer belum tersedia — muat ulang halaman.'));
+      return;
     }
+
+    // Jejak uji muncul di sync_log sesudahnya (tidak ikut langganan), jadi dibaca
+    // langsung dari server, bukan dari cermin layar.
+    await new Promise((r) => setTimeout(r, 900));
+    const siap = intake.logPurgeTerakhir();
+    if (!(await konfirmasi(`Uji: ${siap} baris siap dibuang (jejak 'Belum Cocok' ditahan 7 hari).\n\nHapus sekarang?`))) return;
+
+    const jalan = await intake.bersihkanCekLama(false);
+    if (jalan.jenis !== 'ok') {
+      await info('Gagal: ' + (jalan.jenis === 'gagal' ? jalan.pesan : 'reducer belum tersedia — muat ulang halaman.'));
+      return;
+    }
+    await info(`Selesai: ${siap} baris cek hari lama dibuang.`);
   }
 
   // Masuk (atau masuk ulang): menandai percobaan lalu pindah ke login Google.
@@ -1199,7 +1172,7 @@
                   <td class="px-3 py-2.5 text-right">
                     {#if !c.optimis}
                       <button
-                        onclick={() => hapusCek(c.id)}
+                        onclick={() => hapusCek(c)}
                         class="rounded-md p-1 text-ink2 transition-colors hover:bg-bad/8 hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                         title="Hapus baris cek"
                         aria-label="Hapus baris cek"

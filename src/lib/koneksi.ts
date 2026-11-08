@@ -74,6 +74,8 @@ export type Koneksi = {
   gagal: () => boolean;
   conn: () => any;
   snapsh: () => Snapsh;
+  /** Baris sync_log apa adanya (tidak ikut langganan, jadi dibaca saat diminta). */
+  bacaLogPurge: () => any[];
   /** Gerbang awal halaman: tentukan status sesi, sambung sendiri kalau sudah oke. */
   siapkanSesi: () => void;
   sambung: () => void;
@@ -263,6 +265,7 @@ export function buatKoneksi(deps: Deps): Koneksi {
     gagal: () => gagal,
     conn: () => conn,
     snapsh: () => snapsh,
+    bacaLogPurge: () => Array.from(conn?.db?.syncLog?.iter?.() ?? []),
     siapkanSesi,
     sambung,
     tutup: () => {
