@@ -8,13 +8,10 @@
     Eraser,
     TriangleAlert,
     Camera,
-    Image,
     X,
     Check,
     Search,
     Trash,
-    ChevronLeft,
-    ChevronRight,
   } from '@lucide/svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
@@ -23,6 +20,8 @@
   import { buatKoneksi, type StatusSesi } from './lib/koneksi';
   import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
+  import GaleriBukti from './lib/komponen/GaleriBukti.svelte';
+  import SelEdit from './lib/komponen/SelEdit.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
 
   // Config SpacetimeDB
@@ -166,18 +165,18 @@
   // Sesi login (SpacetimeAuth / Google)
   let sesi = $state<{ status: StatusSesi; email: string }>({ status: 'belum_login', email: '' });
 
-  // State edit inline (double click)
-  let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
-  let nilaiAwalEdit = $state('');
-  let inputEditEl = $state<HTMLInputElement | null>(null);
+  // State edit inline (double click). Nilai yang sedang diketik TIDAK disimpan di
+  // sini: kolom teksnya milik komponen SelEdit, dan nilainya baru dikirim balik
+  // saat kasir menekan Enter / berpindah fokus.
+  let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; awal: string } | null>(null);
 
   // Filter & tab
   let cariTeks = $state('');
   let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
-  // Galeri bukti gambar: dibuka saat kursor menyentuh baris cek.
-  let galeri = $state<{ cek: any; idx: number } | null>(null);
-  let sorot = $state<number | null>(null); // thumbnail yang sedang di-hover (pratinjau)
-  let besar = $state(false); // gambar besar dibuka DI HALAMAN (bukan window baru)
+  // Baris cek yang buktinya sedang dibuka (galeri layar penuh). Sisa keadaannya —
+  // indeks gambar, pratinjau, gambar besar, kunci gulir, Esc — ada di dalam
+  // komponen GaleriBukti.
+  let galeriCek = $state<any | null>(null);
   let tabAktif = $state<'cek' | 'tanpa_cek'>('cek');
 
   // ---- Tema ---------------------------------------------------------------
@@ -321,17 +320,6 @@
       if (t === inputCepatEl || t === inputBayarEl) return;
       if (t.closest('button, input, select, textarea, a, [contenteditable]')) return;
       e.preventDefault();
-    });
-
-    // Galeri: Esc menutup (gambar besar dulu, baru galeri), panah berpindah gambar.
-    document.addEventListener('keydown', (e) => {
-      if (!galeri) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (besar) tutupBesar();
-        else tutupGaleri();
-      } else if (e.key === 'ArrowRight') geserGaleri(1);
-      else if (e.key === 'ArrowLeft') geserGaleri(-1);
     });
 
     // Coba kirim isi antrean tiap 15 detik selama tersambung.
@@ -482,7 +470,7 @@
   // =========================================================================
   // LOGIKA DOUBLE CLICK EDIT INLINE & CHECKBOX KREDIT
   // =========================================================================
-  async function mulaiEdit(c: any, kolom: 'salesman' | 'nominal' | 'dibayar') {
+  function mulaiEdit(c: any, kolom: 'salesman' | 'nominal' | 'dibayar') {
     if (c.optimis) return; // barisnya belum ada di server (id sementara)
     let nilai = '';
     if (kolom === 'salesman') {
@@ -490,21 +478,20 @@
     } else if (kolom === 'nominal' || kolom === 'dibayar') {
       nilai = String(Number(c[kolom]) / 1000);
     }
-    selEdit = { id: c.id, kolom, nilai };
-    nilaiAwalEdit = nilai;
-    await tick();
-    inputEditEl?.focus();
-    if (inputEditEl && inputEditEl instanceof HTMLInputElement) inputEditEl.select();
+    selEdit = { id: c.id, kolom, awal: nilai };
   }
 
   function batalEdit() {
     selEdit = null;
   }
 
-  async function simpanEdit(c: any) {
+  async function simpanEdit(c: any, nilaiBaru: string) {
     if (butuhKoneksi("mengubah cek")) return;
     if (!selEdit || selEdit.id !== c.id) return;
-    const s = selEdit;
+    const kolom = selEdit.kolom;
+    // Nilainya datang dari komponen sel (Enter / pindah fokus / ketuk penjual),
+    // bukan dibaca dari state di sini — jadi satu sel hanya dikirim satu kali.
+    const nilai = String(nilaiBaru ?? '');
     selEdit = null;
 
     let nominal = c.nominal;
@@ -512,15 +499,15 @@
     let salesman = c.salesman;
     let salesmanNama = c.salesmanNama;
 
-    if (s.kolom === 'nominal') {
-      const ribuan = Number(String(s.nilai ?? '').replace(/[^0-9]/g, ''));   // tahan angka maupun teks
+    if (kolom === 'nominal') {
+      const ribuan = Number(nilai.replace(/[^0-9]/g, ''));   // tahan angka maupun teks
       nominal = BigInt(ribuan * 1000);
-    } else if (s.kolom === 'dibayar') {
-      const ribuan = Number(String(s.nilai ?? '').replace(/[^0-9]/g, ''));   // tahan angka maupun teks
+    } else if (kolom === 'dibayar') {
+      const ribuan = Number(nilai.replace(/[^0-9]/g, ''));   // tahan angka maupun teks
       dibayar = BigInt(ribuan * 1000);
-    } else if (s.kolom === 'salesman') {
-      const hasil = cariSalesmanAktif(s.nilai);
-      salesmanNama = hasil || s.nilai.trim();
+    } else if (kolom === 'salesman') {
+      const hasil = cariSalesmanAktif(nilai);
+      salesmanNama = hasil || nilai.trim();
       salesman = salesmanNama;
     }
 
@@ -607,45 +594,20 @@
     return fotoPerCek.get(kunciFoto(c)) ?? [];
   }
 
-  // Akordion: klik tombol foto → baris itu membuka galeri di bawahnya.
-  // Galeri layar penuh: klik tombol foto -> panel menutupi layar.
-  function bukaGaleri(c: any, idx = 0) {
+  // Buka/tutup galeri bukti. Isinya (indeks, pratinjau, gambar besar, Esc, kunci
+  // gulir) milik komponen GaleriBukti; di sini hanya baris mana yang dibuka.
+  function bukaGaleri(c: any) {
     if (fotoCek(c).length === 0) return;
-    galeri = { cek: c, idx };
-    sorot = null;
-    besar = false;
-    document.body.style.overflow = 'hidden'; // kunci gulir layar belakang
+    galeriCek = c;
   }
 
-  // Tutup galeri + kembalikan fokus ke input cek supaya kasir bisa langsung
-  // mengetik lagi. Urutan penting: pindahkan fokus SEBELUM panel dibuang dari
-  // DOM — kalau node yang sedang difokus dihapus, browser memindahkannya ke <body>.
+  // Kembalikan fokus ke kolom Cek supaya kasir bisa langsung mengetik lagi.
+  // Ditulis begini karena panelnya dibuang dari DOM: tanpa pemfokusan ulang,
+  // browser memindahkan fokus ke <body> dan Tab mulai lagi dari awal halaman.
   function tutupGaleri() {
-    galeri = null;
-    sorot = null;
-    besar = false;
-    document.body.style.overflow = '';
+    galeriCek = null;
     inputCepatEl?.focus();
     setTimeout(() => inputCepatEl?.focus(), 30);
-  }
-
-  function bukaBesar(i: number) {
-    if (!galeri) return;
-    galeri = { ...galeri, idx: i };
-    besar = true;
-  }
-
-  function tutupBesar() {
-    besar = false;
-  }
-
-  function geserGaleri(arah: number) {
-    if (!galeri) return;
-    const jumlah = fotoCek(galeri.cek).length;
-    if (!jumlah) return;
-    const baru = (galeri.idx + arah + jumlah) % jumlah;
-    galeri = { ...galeri, idx: baru };
-    sorot = baru;
   }
 
   // ---- Beda tafsir pembayaran (cek kasir vs yang diinput ke Ollsera) -------
@@ -1153,8 +1115,8 @@
                           {#each daftarSalesmanAktif as s (s.nama)}
                             <button
                               type="button"
-                              onclick={() => { if (selEdit) selEdit.nilai = s.nama; simpanEdit(c); }}
-                              class="w-full rounded-lg px-3 py-3 text-left text-[14px] font-medium transition-colors {selEdit?.nilai === s.nama ? 'bg-accent text-onaccent' : 'text-ink hover:bg-raised'}"
+                              onclick={() => simpanEdit(c, s.nama)}
+                              class="w-full rounded-lg px-3 py-3 text-left text-[14px] font-medium transition-colors {selEdit?.awal === s.nama ? 'bg-accent text-onaccent' : 'text-ink hover:bg-raised'}"
                             >
                               {s.nama}
                             </button>
@@ -1173,17 +1135,10 @@
                     title="Klik 2x untuk ubah nominal"
                   >
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'nominal'}
-                      <input
-                        bind:this={inputEditEl}
-                        bind:value={selEdit.nilai}
-                        type="text"
-                        inputmode="numeric"
-                        onkeydown={(e) => {
-                          if (e.key === 'Enter') simpanEdit(c);
-                          else if (e.key === 'Escape') batalEdit();
-                        }}
-                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
-                        class="h-6 w-20 rounded border border-accent bg-card px-1 text-right font-mono text-[12px] text-ink outline-none"
+                      <SelEdit
+                        awal={selEdit.awal}
+                        onsimpan={(nilai) => simpanEdit(c, nilai)}
+                        onbatal={batalEdit}
                       />
                     {:else}
                       {formatRibuan(c.nominal)}
@@ -1197,17 +1152,10 @@
                     title="Klik 2x untuk ubah dibayar"
                   >
                     {#if selEdit && selEdit.id === c.id && selEdit.kolom === 'dibayar'}
-                      <input
-                        bind:this={inputEditEl}
-                        bind:value={selEdit.nilai}
-                        type="text"
-                        inputmode="numeric"
-                        onkeydown={(e) => {
-                          if (e.key === 'Enter') simpanEdit(c);
-                          else if (e.key === 'Escape') batalEdit();
-                        }}
-                        onblur={() => { if (selEdit && selEdit.nilai !== nilaiAwalEdit) simpanEdit(c); }}
-                        class="h-6 w-20 rounded border border-accent bg-card px-1 text-right font-mono text-[12px] text-ink outline-none"
+                      <SelEdit
+                        awal={selEdit.awal}
+                        onsimpan={(nilai) => simpanEdit(c, nilai)}
+                        onbatal={batalEdit}
                       />
                     {:else if c.kredit}
                       <span class="text-muted">Kredit</span>
@@ -1269,7 +1217,7 @@
                         type="button"
                         data-ui="buktiGambar"
                         onclick={() => bukaGaleri(c)}
-                        class="inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeri?.cek?.id === c.id ? 'border-accent bg-accent text-onaccent' : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
+                        class="inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {galeriCek?.id === c.id ? 'border-accent bg-accent text-onaccent' : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
                         title="Buka galeri bukti gambar (layar penuh)"
                         aria-label="Bukti gambar: {fotoCek(c).length} foto"
                       >
@@ -1303,113 +1251,9 @@
     </div>
   {/if}
 
-  <!-- GALERI LAYAR PENUH (klik tombol foto pada baris cek) -->
-  {#if galeri}
-    {@const gambar = fotoCek(galeri.cek)}
-    <div
-      class="fixed inset-0 z-[80] flex flex-col bg-scrim"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Galeri bukti cek"
-    >
-      <!-- KEPALA -->
-      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-kertas">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 text-[14px] font-medium">
-            <Camera size={15} strokeWidth={1.5} class="shrink-0 text-white/60" />
-            <span class="truncate">Bukti cek · {galeri.cek.salesmanNama}</span>
-          </div>
-          <div class="mt-0.5 font-mono text-[12px] text-white/60">
-            {rupiah(Number(galeri.cek.nominal))} · {galeri.cek.jam.slice(0, 5)} · {gambar.length} gambar
-          </div>
-        </div>
-        <button
-          type="button"
-          data-ui="tutupGaleri"
-          onclick={tutupGaleri}
-          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium text-kertas transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-          title="Tutup galeri (Esc)"
-        >
-          <X size={14} strokeWidth={1.5} />
-          Tutup
-          <span class="font-mono text-white/50">Esc</span>
-        </button>
-      </div>
-
-      <!-- PRATINJAU: gambar yang sedang disorot kursor -->
-      {#if sorot !== null && gambar[sorot]}
-        <div class="flex min-h-0 flex-1 items-center justify-center p-3">
-          <img
-            src={gambar[sorot].url}
-            alt={gambar[sorot].filename ?? 'bukti cek'}
-            class="max-h-full max-w-full rounded-lg object-contain"
-            loading="lazy"
-          />
-        </div>
-      {:else}
-        <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-[13px] text-white/60">
-          <Image size={22} strokeWidth={1.5} />
-          <span>Klik gambar kecil untuk melihat ukuran besar</span>
-          <span class="text-white/40">arahkan kursor ke gambar kecil untuk pratinjau</span>
-        </div>
-      {/if}
-
-      <!-- SEMUA GAMBAR KECIL -->
-      <div class="max-h-[40vh] shrink-0 overflow-y-auto border-t border-white/10 px-3 py-3">
-        <div class="flex flex-wrap justify-center gap-2">
-          {#each gambar as g, i (g.url)}
-            <button
-              type="button"
-              data-ui="thumbBukti"
-              onclick={() => bukaBesar(i)}
-              onmouseenter={() => (sorot = i)}
-              onmouseleave={() => (sorot = null)}
-              onfocus={() => (sorot = i)}
-              onblur={() => (sorot = null)}
-              class="rounded-lg border-2 p-0.5 transition-colors {sorot === i || galeri.idx === i ? 'border-accent' : 'border-white/10'}"
-              title="Gambar {i + 1} dari {gambar.length} — klik untuk melihat besar"
-            >
-              <img src={g.url} alt={g.filename ?? 'bukti'} class="h-20 w-20 rounded object-cover" loading="lazy" />
-            </button>
-          {/each}
-        </div>
-      </div>
-    </div>
-
-    <!-- GAMBAR BESAR: dibuka DI HALAMAN INI (bukan window/tab baru) -->
-    {#if besar && gambar[galeri.idx]}
-      <div class="fixed inset-0 z-[90] flex flex-col bg-black" onclick={tutupBesar} role="presentation">
-        <div class="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-kertas" onclick={(e) => e.stopPropagation()}>
-          <span class="font-mono text-[12px] text-white/60">{galeri.idx + 1} / {gambar.length}</span>
-          <div class="flex items-center gap-1.5">
-            <button type="button" onclick={() => geserGaleri(-1)} class="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium transition-colors hover:bg-white/10">
-              <ChevronLeft size={14} strokeWidth={1.5} />
-              Sebelumnya
-            </button>
-            <button type="button" onclick={() => geserGaleri(1)} class="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-[12px] font-medium transition-colors hover:bg-white/10">
-              Berikutnya
-              <ChevronRight size={14} strokeWidth={1.5} />
-            </button>
-            <button
-              type="button"
-              data-ui="tutupBesar"
-              onclick={tutupBesar}
-              class="rounded-lg border border-white/15 p-2 transition-colors hover:bg-white/10"
-              title="Kembali ke daftar gambar (Esc)"
-            >
-              <X size={14} strokeWidth={1.5} />
-            </button>
-          </div>
-        </div>
-        <div class="flex min-h-0 flex-1 items-center justify-center p-2" onclick={(e) => e.stopPropagation()}>
-          <img
-            src={gambar[galeri.idx].url}
-            alt={gambar[galeri.idx].filename ?? 'bukti cek'}
-            class="max-h-full max-w-full object-contain"
-          />
-        </div>
-      </div>
-    {/if}
+  <!-- GALERI BUKTI (layar penuh). Isi & keadaannya di lib/komponen/GaleriBukti.svelte -->
+  {#if galeriCek}
+    <GaleriBukti baris={galeriCek} foto={fotoCek(galeriCek)} onclose={tutupGaleri} />
   {/if}
 
   <!-- TAB 2: PENJUALAN TANPA CEK -->
