@@ -97,3 +97,13 @@ if ! bash scripts/uji_koneksi.sh >/tmp/periksa-koneksi.log 2>&1; then
   exit 1
 fi
 tail -1 /tmp/periksa-koneksi.log | sed 's/^/OK — uji koneksi: /'
+
+# UJI SARINGAN & PENCOCOKAN (8 Nov 2026). Arti tiap tab saringan ("belum input",
+# "kurang bayar", "beda tafsir") pindah dari App.svelte ke lib/saring.ts. Itu tab
+# yang dipakai pemilik untuk memutuskan, jadi salah arti = salah keputusan.
+if ! bash scripts/uji_saring.sh >/tmp/periksa-saring.log 2>&1; then
+  echo "GAGAL — uji saringan tidak lulus:"
+  tail -14 /tmp/periksa-saring.log
+  exit 1
+fi
+tail -1 /tmp/periksa-saring.log | sed 's/^/OK — uji saringan: /'

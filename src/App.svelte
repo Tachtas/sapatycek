@@ -18,7 +18,16 @@
   import { rupiah, formatRibuan, uraiCek, hitungRingkasan } from './lib/cek';
   import { buatIntake, type StatusKoneksi } from './lib/intake';
   import { buatKoneksi, type StatusSesi } from './lib/koneksi';
-  import { bedaBayar as bedaBayarMurni } from './lib/kredit';
+  import {
+    bedaBayarCek,
+    fotoUntuk,
+    hitungBedaBayar,
+    nilaiTanpaCek as nilaiTanpaCekTotal,
+    petaFoto,
+    petaPerOrder,
+    saringCek,
+    type FilterStatus,
+  } from './lib/saring';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import GaleriBukti from './lib/komponen/GaleriBukti.svelte';
   import SelEdit from './lib/komponen/SelEdit.svelte';
@@ -172,7 +181,7 @@
 
   // Filter & tab
   let cariTeks = $state('');
-  let filterStatus = $state<'semua' | 'belum_input' | 'beda_bayar' | 'kredit' | 'kurang_bayar'>('semua');
+  let filterStatus = $state<FilterStatus>('semua');
   // Baris cek yang buktinya sedang dibuka (galeri layar penuh). Sisa keadaannya —
   // indeks gambar, pratinjau, gambar besar, kunci gulir, Esc — ada di dalam
   // komponen GaleriBukti.
@@ -567,31 +576,10 @@
   // ---- Galeri bukti gambar -------------------------------------------------
   // Kunci dari sisi ERP: 'cek-{outlet}-{tanggal}-{id}' (huruf kecil). Data lama
   // ada yang beda huruf besar/kecil, jadi pencocokan dibuat tanpa peduli huruf.
-  function kunciFoto(c: any): string {
-    // Baris hasil pemulihan arsip membawa cekid apa adanya (id baris SpacetimeDB
-    // lama); baris baru tetap dihitung dari id. Keduanya harus sama bentuknya
-    // dengan yang dipakai modul (lihat relasi.ts).
-    const eksplisit = String((c as any).cekid ?? '').trim();
-    if (eksplisit) return eksplisit.toLowerCase();
-    return `cek-${OUTLET.toLowerCase()}-${c.tanggal}-${c.id}`.toLowerCase();
-  }
-
-  const fotoPerCek = $derived.by(() => {
-    const m = new Map<string, { url: string; filename?: string; source?: string }[]>();
-    for (const f of daftarFoto) {
-      let arr: any[] = [];
-      try {
-        arr = JSON.parse(f.imagesJson || '[]');
-      } catch {
-        arr = [];
-      }
-      if (Array.isArray(arr) && arr.length > 0) m.set(String(f.cekid ?? '').toLowerCase(), arr);
-    }
-    return m;
-  });
+  const fotoPerCek = $derived(petaFoto(daftarFoto));
 
   function fotoCek(c: any) {
-    return fotoPerCek.get(kunciFoto(c)) ?? [];
+    return fotoUntuk(c, fotoPerCek, OUTLET);
   }
 
   // Buka/tutup galeri bukti. Isinya (indeks, pratinjau, gambar besar, Esc, kunci
@@ -614,46 +602,25 @@
   // Ollsera menandai kredit pada `payment_mode` = 'Kredit' (payment_type selalu
   // 'Tunai'). Kalau kasir mencentang kredit tapi register tunai — atau
   // sebaliknya — admin harus bisa melihatnya untuk membetulkan di Ollsera.
-  const penjualanPerOrder = $derived.by(() => {
-    const m = new Map<string, any>();
-    for (const p of daftarPenjualan) m.set(p.orderNo, p);
-    return m;
-  });
+  const penjualanPerOrder = $derived(petaPerOrder(daftarPenjualan));
 
-  // Logikanya di lib/kredit.ts (fungsi murni + uji di scripts/uji_kredit.*).
+  // Logikanya di lib/kredit.ts (fungsi murni + uji di scripts/uji_kredit.*),
+  // dibungkus lib/saring.ts bersama saringannya (uji di scripts/uji_saring.*).
   // Ejaan kredit BEDA antar sumber - Ollsera 'Kredit', POS Sapaty 'CREDIT' - dan
   // detektor lama hanya mengenal yang pertama, sehingga penjualan kredit dari POS
   // terbaca sebagai TUNAI. Akibatnya baris yang sebenarnya sepadan dilaporkan
   // sebagai "beda tafsir" (kejadian nyata 1 Nov 2026: 204.000 Silvia, kredit).
   function bedaBayar(c: any): { cekKredit: boolean; regKredit: boolean } | null {
-    return bedaBayarMurni(c, (o: string) => penjualanPerOrder.get(o));
+    return bedaBayarCek(c, penjualanPerOrder);
   }
 
-  const jmlBedaBayar = $derived(daftarCek.filter((c) => bedaBayar(c) !== null).length);
+  const jmlBedaBayar = $derived(hitungBedaBayar(daftarCek, penjualanPerOrder));
 
   // Pesanan POS yang belum ada ceknya (= "belum diinput" oleh kasir).
-  const nilaiTanpaCek = $derived(ringkasan.penjualanTanpaCek.reduce((a, b) => a + Number(b.total), 0));
+  const nilaiTanpaCek = $derived(nilaiTanpaCekTotal(ringkasan.penjualanTanpaCek));
 
-  // Filter daftar cek untuk tabel
-  const cekTersaring = $derived.by(() => {
-    const q = cariTeks.trim().toLowerCase();
-    return cekTampil.filter((c) => {
-      if (filterStatus === 'beda_bayar' && bedaBayar(c) === null) return false;
-      if (filterStatus === 'kredit' && !c.kredit) return false;
-      if (filterStatus === 'belum_input' && (c.orderNo || c.status !== 'Belum Cocok')) return false;
-      if (filterStatus === 'kurang_bayar' && (c.kredit || Number(c.dibayar) >= Number(c.nominal))) return false;
-      if (q) {
-        const match =
-          c.salesmanNama.toLowerCase().includes(q) ||
-          c.salesman.toLowerCase().includes(q) ||
-          c.orderNo.toLowerCase().includes(q) ||
-          c.customer.toLowerCase().includes(q) ||
-          c.nominal.toString().includes(q);
-        if (!match) return false;
-      }
-      return true;
-    });
-  });
+  // Filter daftar cek untuk tabel — arti tiap tabnya ada di lib/saring.ts.
+  const cekTersaring = $derived(saringCek(cekTampil, filterStatus, cariTeks, penjualanPerOrder));
 
   // Label koneksi (teks tenang, bukan pil menyala)
   const statusTeks = $derived(
