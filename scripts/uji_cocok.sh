@@ -1,5 +1,5 @@
 #!/bin/bash
-# Uji pencocokan per penjual (cek kasir vs penjualan sapatypos).
+# Uji pencocokan cek kasir vs penjualan register untuk ringkasan hari.
 # Jalankan: bash scripts/uji_cocok.sh
 set -e
 cd "$(dirname "$0")/.."
