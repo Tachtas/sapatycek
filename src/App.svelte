@@ -473,15 +473,15 @@
   function onInputCepat() {
     ketikTerakhir = Date.now();
     simpanDraf();
-    const teks = cepatTeks.trim();
+    // Tafsir diambil dari isi kolom yang sedang dilihat kasir, bukan dari state
+    // — jadi gerbang auto-submit tidak bergantung urutan bind:value vs oninput.
+    const teks = (inputCepatEl?.value ?? cepatTeks).trim();
     // Transaksi baru dimulai → keterangan pelunasan sebelumnya disembunyikan.
     if (teks && pesanPelunasan) pesanPelunasan = null;
     // Gerbang auto-submit DAN yang benar-benar disimpan membaca tafsir yang sama
     // (lib/cek.ts:uraiCek) — dulu gerbangnya regex sendiri di sini, sehingga
     // ketikan seperti "25m1-" memicu submit lalu ditolak parser tanpa pesan.
-    if (pratinjauCek.lengkap) {
-      kirimCepat();
-    }
+    if (uraiCek(teks, cariSalesmanAktif).lengkap) kirimCepat();
   }
 
   function onKeyRightCepat(e: KeyboardEvent) {
@@ -510,7 +510,9 @@
   }
 
   async function kirimCepat() {
-    const tafsir = pratinjauCek;
+    // Sumber kebenaran = isi kolom Cek seperti yang dilihat kasir.
+    const teksMentah = inputCepatEl?.value ?? cepatTeks;
+    const tafsir = uraiCek(teksMentah, cariSalesmanAktif);
     if (tafsir.jenis === 'kosong' || menyimpanCek) return;
 
     // Parser SINTAS (bukan pratinjau): kode salesman tak dikenal tetap dicatat,
@@ -521,7 +523,7 @@
       return;
     }
 
-    const teks = cepatTeks.trim().toLowerCase();
+    const teks = teksMentah.trim().toLowerCase();
     const nominal = BigInt(tafsir.nominal ?? 0);
     const kode = tafsir.kode ?? '';
     const tipe = tafsir.tipe ?? 'Ecer';
