@@ -56,6 +56,16 @@ if ! bash scripts/uji_cocok.sh >/tmp/periksa-cocok.log 2>&1; then
 fi
 tail -1 /tmp/periksa-cocok.log | sed 's/^/OK — uji pencocokan: /'
 
+# UJI SATU GRAMMAR INPUT CEK (8 Nov 2026). Gerbang auto-submit dan parser yang
+# menyimpan dulu dua regex terpisah: "25m1-" lolos gerbang lalu ditolak parser,
+# jadi ketikan operator hilang tanpa pesan. Sekarang keduanya membaca uraiCek.
+if ! bash scripts/uji_urai.sh >/tmp/periksa-urai.log 2>&1; then
+  echo "GAGAL — uji grammar input cek tidak lulus:"
+  tail -14 /tmp/periksa-urai.log
+  exit 1
+fi
+tail -1 /tmp/periksa-urai.log | sed 's/^/OK — uji grammar cek: /'
+
 # UJI BARIS OPTIMIS (7 Nov 2026). Baris cek yang baru diketik tampil seketika
 # (id sementara negatif) dan harus diserap baris server yang sepadan — kalau
 # tidak, layar menampilkan cek kembar atau barisnya hilang.

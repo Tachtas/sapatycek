@@ -18,7 +18,7 @@
   } from '@lucide/svelte';
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
-  import { rupiah, formatRibuan, uraiCek, parseCek, hitungRingkasan, cocokOptimis } from './lib/cek';
+  import { rupiah, formatRibuan, uraiCek, hitungRingkasan, cocokOptimis } from './lib/cek';
   import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
@@ -462,10 +462,6 @@
   // =========================================================================
   // LOGIKA INPUT CEK TANPA TOMBOL: Otomatis submit saat format lengkap
   // =========================================================================
-  function cekLengkap(teks: string): boolean {
-    const bersih = teks.trim().toLowerCase().replace(/[^0-9a-z]/g, '');
-    return /^\d+[a-z]\d$/.test(bersih);
-  }
 
   // Draf input disimpan sementara: saat sesi habis, halaman dimuat ulang dan
   // angka yang sedang diketik operator tidak boleh hilang.
@@ -480,7 +476,10 @@
     const teks = cepatTeks.trim();
     // Transaksi baru dimulai → keterangan pelunasan sebelumnya disembunyikan.
     if (teks && pesanPelunasan) pesanPelunasan = null;
-    if (cekLengkap(teks)) {
+    // Gerbang auto-submit DAN yang benar-benar disimpan membaca tafsir yang sama
+    // (lib/cek.ts:uraiCek) — dulu gerbangnya regex sendiri di sini, sehingga
+    // ketikan seperti "25m1-" memicu submit lalu ditolak parser tanpa pesan.
+    if (pratinjauCek.lengkap) {
       kirimCepat();
     }
   }
@@ -501,7 +500,9 @@
   // B=Nabil, C=Sindi, V=Silvia… (sumber salah input terbanyak).
   function pilihSalesman(kode: string) {
     if (!kode) return;
-    const digit = (cepatTeks.match(/^(\d+)/) ?? [])[1] ?? '';
+    // Angka nominal yang sudah diketik diambil dari tafsir yang sama dengan
+    // gerbang submit — tidak ada regex kedua untuk grammar ini.
+    const digit = pratinjauCek.digit ?? '';
     cepatTeks = digit ? digit + kode + '1' : kode;
     ketikTerakhir = Date.now();
     simpanDraf();
@@ -509,17 +510,21 @@
   }
 
   async function kirimCepat() {
+    const tafsir = pratinjauCek;
+    if (tafsir.jenis === 'kosong' || menyimpanCek) return;
+
+    // Parser SINTAS (bukan pratinjau): kode salesman tak dikenal tetap dicatat,
+    // yang penting input operator tidak pernah hilang. Kalau grammar belum utuh,
+    // kasir diberi tahu — jangan diam-diam tidak menyimpan apa pun.
+    if (!tafsir.lengkap) {
+      setPesanGalat(tafsir.teks || 'Format: nominal + kode + tipe (mis. 25m1)');
+      return;
+    }
+
     const teks = cepatTeks.trim().toLowerCase();
-    if (!teks || menyimpanCek) return;
-
-    // Parser sintaks (bukan pratinjau): kode salesman tak dikenal tetap dicatat,
-    // yang penting input operator tidak pernah hilang.
-    const tafsir = parseCek(teks);
-    if (!tafsir) return;
-
-    const nominal = BigInt(tafsir.nominal);
-    const kode = tafsir.kode;
-    const tipe = tafsir.tipeDigit === '2' ? 'Obral' : tafsir.tipeDigit === '3' ? 'Grosir' : 'Ecer';
+    const nominal = BigInt(tafsir.nominal ?? 0);
+    const kode = tafsir.kode ?? '';
+    const tipe = tafsir.tipe ?? 'Ecer';
 
     // Pindahkan kursor SEKETIKA (0ms) ke kotak Bayar
     cepatTeks = '';
@@ -1294,12 +1299,12 @@
           type="button"
           data-ui="pilihSalesman"
           onclick={() => pilihSalesman(s.kode)}
-          class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama
+          class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 {pratinjauCek.kode === s.kode
             ? 'border-accent bg-accent text-onaccent'
             : 'border-line2 bg-card text-ink2 hover:bg-raised'}"
           title="Isi kolom Cek dengan kode {s.kode.toUpperCase()} untuk {s.nama}"
         >
-          <span class="font-mono text-[11px] {cariSalesmanAktif(cepatTeks.replace(/^\d+/, '').replace(/\d$/, '')) === s.nama ? 'text-onaccent/70' : 'text-muted'}">{s.kode.toUpperCase()}</span>
+          <span class="font-mono text-[11px] {pratinjauCek.kode === s.kode ? 'text-onaccent/70' : 'text-muted'}">{s.kode.toUpperCase()}</span>
           <span>{s.nama}</span>
         </button>
       {/each}

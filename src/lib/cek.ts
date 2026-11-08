@@ -12,56 +12,79 @@ export function formatRibuan(n: number | bigint): string {
 
 export type TafsirCek = {
   jenis: 'kosong' | 'sebagian' | 'salah' | 'siap';
+  /**
+   * Grammar cek utuh (nominal + kode + tipe). Ini SATU-SATUNYA gerbang
+   * auto-submit — dulu gerbangnya regex terpisah di App.svelte dan bisa
+   * berbeda tafsir dengan parser yang menyimpan.
+   */
+  lengkap: boolean;
   teks: string;
-  /** Terisi hanya saat jenis === 'siap' */
+  /** Angka nominal yang sudah diketik (tanpa satuan) — dipakai papan penjual. */
+  digit?: string;
   nominal?: number;
-  tipe?: string;
   kode?: string;
+  tipeDigit?: string;
+  tipe?: string;
 };
 
 const TIPE_DARI_DIGIT: Record<string, string> = { '1': 'Ecer', '2': 'Obral', '3': 'Grosir' };
+const POLA_LENGKAP = /^(\d+)([a-z])(\d)$/;
+const POLA_KURANG_TIPE = /^(\d+)([a-z])$/;
 
 /**
- * Parser SINTAS (dipakai saat menyimpan): `<nominal ribu><kode salesman><digit tipe>`.
+ * SATU-SATUNYA grammar input cek: `<nominal ribu><kode salesman><digit tipe>`.
+ * Dipakai untuk pratinjau DAN untuk memutuskan boleh-simpan, supaya keduanya
+ * tidak bisa berbeda tafsir (pernah: "25m1-" lolos gerbang lama tetapi ditolak
+ * parser, sehingga ketikan operator hilang tanpa pesan apa pun).
  * Sengaja longgar terhadap nama: kode tak dikenal tetap dicatat apa adanya —
  * server yang menerjemahkannya, dan input tidak boleh hilang.
  */
-export function parseCek(teksMentah: string): { nominal: number; kode: string; tipeDigit: string } | null {
-  const bersih = (teksMentah || '').trim().toLowerCase().replace(/[.\s]/g, '');
-  const m = bersih.match(/^(\d+)([a-z])(\d)$/);
-  if (!m) return null;
-  return { nominal: Number(m[1]) * 1000, kode: m[2], tipeDigit: m[3] };
-}
-
-/**
- * Tafsir input cepat kasir untuk DITAMPILKAN (memanfaatkan parser sintaks di atas).
- * `cariNama` menerjemahkan kode huruf menjadi nama salesman aktif ('' bila tak ada).
- */
 export function uraiCek(teksMentah: string, cariNama: (kode: string) => string): TafsirCek {
   const bersih = (teksMentah || '').trim().toLowerCase().replace(/[.\s]/g, '');
-  if (!bersih) return { jenis: 'kosong', teks: '' };
+  if (!bersih) return { jenis: 'kosong', lengkap: false, teks: '' };
+
+  const utuh = POLA_LENGKAP.exec(bersih);
+  if (utuh) {
+    const nominal = Number(utuh[1]) * 1000;
+    const kode = utuh[2];
+    const tipeDigit = utuh[3];
+    const tipe = TIPE_DARI_DIGIT[tipeDigit] ?? 'Ecer';
+    const dasar = { lengkap: true, digit: utuh[1], nominal, kode, tipeDigit, tipe };
+    const nama = cariNama(kode);
+    if (!nama) {
+      return {
+        ...dasar,
+        jenis: 'salah',
+        teks: `${rupiah(nominal)} · kode ${kode.toUpperCase()} tidak ada di daftar salesman aktif`,
+      };
+    }
+    return { ...dasar, jenis: 'siap', teks: `${rupiah(nominal)} · ${tipe} · ${nama}` };
+  }
 
   if (/^\d+$/.test(bersih)) {
-    return { jenis: 'sebagian', teks: `${rupiah(Number(bersih) * 1000)} · tinggal kode salesman (ketuk di bawah)` };
-  }
-
-  const m = bersih.match(/^(\d+)([a-z])(\d)?$/);
-  if (!m) return { jenis: 'salah', teks: 'Format: nominal + kode + tipe (mis. 25m1)' };
-
-  const nominal = Number(m[1]) * 1000;
-  const kode = m[2];
-  const nama = cariNama(kode);
-  if (!m[3]) {
     return {
       jenis: 'sebagian',
-      teks: `${rupiah(nominal)} · ${nama || 'kode ' + kode.toUpperCase() + ' tak dikenal'} · tinggal digit tipe (1 Ecer / 2 Obral / 3 Grosir)`,
+      lengkap: false,
+      teks: `${rupiah(Number(bersih) * 1000)} · tinggal kode salesman (ketuk di bawah)`,
+      digit: bersih,
+      nominal: Number(bersih) * 1000,
     };
   }
-  const tipe = TIPE_DARI_DIGIT[m[3]] ?? 'Ecer';
-  if (!nama) {
-    return { jenis: 'salah', teks: `${rupiah(nominal)} · kode ${kode.toUpperCase()} tidak ada di daftar salesman aktif` };
-  }
-  return { jenis: 'siap', teks: `${rupiah(nominal)} · ${tipe} · ${nama}`, nominal, tipe, kode };
+
+  const kurang = POLA_KURANG_TIPE.exec(bersih);
+  if (!kurang) return { jenis: 'salah', lengkap: false, teks: 'Format: nominal + kode + tipe (mis. 25m1)' };
+
+  const nominal = Number(kurang[1]) * 1000;
+  const kode = kurang[2];
+  const nama = cariNama(kode);
+  return {
+    jenis: 'sebagian',
+    lengkap: false,
+    teks: `${rupiah(nominal)} · ${nama || 'kode ' + kode.toUpperCase() + ' tak dikenal'} · tinggal digit tipe (1 Ecer / 2 Obral / 3 Grosir)`,
+    digit: kurang[1],
+    nominal,
+    kode,
+  };
 }
 
 /**
