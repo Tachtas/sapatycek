@@ -86,3 +86,14 @@ if ! bash scripts/uji_intake.sh >/tmp/periksa-intake.log 2>&1; then
   exit 1
 fi
 tail -1 /tmp/periksa-intake.log | sed 's/^/OK — uji intake: /'
+
+# UJI SAMBUNGAN & SESI (8 Nov 2026). Urutan menyambung, ritme sambung ulang, dan
+# perpanjangan token pindah dari App.svelte ke lib/koneksi.ts. Pabrik koneksi dan
+# timer-nya palsu di uji, jadi putus/galat token bisa dibangkitkan dan jeda
+# sambung ulang bisa diukur tanpa menunggu detik nyata.
+if ! bash scripts/uji_koneksi.sh >/tmp/periksa-koneksi.log 2>&1; then
+  echo "GAGAL — uji sambungan & sesi tidak lulus:"
+  tail -14 /tmp/periksa-koneksi.log
+  exit 1
+fi
+tail -1 /tmp/periksa-koneksi.log | sed 's/^/OK — uji koneksi: /'

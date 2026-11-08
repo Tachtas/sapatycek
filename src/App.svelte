@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import {
     Lock,
     Hourglass,
@@ -19,7 +19,8 @@
   import { DbConnection } from './module_bindings';
   import { antrean, antreTambah, antreBuang } from './lib/antrean.svelte';
   import { rupiah, formatRibuan, uraiCek, hitungRingkasan } from './lib/cek';
-  import { buatIntake } from './lib/intake';
+  import { buatIntake, type StatusKoneksi } from './lib/intake';
+  import { buatKoneksi, type StatusSesi } from './lib/koneksi';
   import { bedaBayar as bedaBayarMurni } from './lib/kredit';
   import AntreanCek from './lib/komponen/AntreanCek.svelte';
   import { loginGoogle, handleOidcCallback, spacetimeToken, emailLogin, logout, tokenKedaluwarsa, bolehCobaLagi, tandaiCobaLagi, perpanjangToken, tokenSegeraHabis } from './lib/login';
@@ -41,8 +42,11 @@
     timeZone: 'Asia/Jayapura',
   }).format(new Date(`${tanggal}T05:00:00Z`));
 
+  // Cermin dari module sambungan & sesi (lib/koneksi.ts). Layar tidak menyentuh
+  // socket sama sekali: yang dipegang di sini hanya apa yang perlu digambar.
   let conn = $state<any>(null);
-  let statusKoneksi = $state<'menghubungkan' | 'terhubung' | 'terputus'>('menghubungkan');
+  let statusKoneksi = $state<StatusKoneksi>('menghubungkan');
+  let gagalKoneksi = $state(false);
 
   // Data reactive dari SpacetimeDB
   let daftarCek = $state<any[]>([]);
@@ -90,6 +94,42 @@
     tidur: (ms) => new Promise((selesai) => setTimeout(selesai, ms)),
   });
 
+  // Sambungan & sesi: seluruh urutan menyambung (klaim akun → langganan → baca
+  // ulang), ritme sambung ulang, dan perpanjangan token ada di module ini.
+  // Pabrik koneksinya disuntikkan supaya jalur sambung-ulang bisa diuji di Node.
+  const koneksi = buatKoneksi({
+    pabrik: () => DbConnection.builder(),
+    uri: HOST,
+    dbName: DB_NAME,
+    outlet: OUTLET,
+    tanggal,
+    token: spacetimeToken,
+    email: emailLogin,
+    emailDiizinkan: (em) => em === EMAIL_DIIZINKAN,
+    tokenKedaluwarsa,
+    tokenSegeraHabis,
+    perpanjangToken,
+    bolehCobaLagi,
+    tandaiCobaLagi,
+    masukUlang: loginGoogle,
+    snapshBerubah: (s) => {
+      daftarCek = s.cek;
+      daftarPenjualan = s.penjualan;
+      daftarFoto = s.foto;
+      daftarSalesman = s.salesman;
+      jmlCekLama = s.cekLama;
+      // Baris server yang baru tiba menyerap baris optimis yang sepadan → tidak
+      // ada baris kembar di layar, dan id sementara diganti id server.
+      intake.rekonsiliasi(s.cek);
+    },
+    statusBerubah: (s, g) => { statusKoneksi = s; gagalKoneksi = g; },
+    sesiBerubah: (s, em) => { sesi = { status: s, email: em }; },
+    saatTersambung: (c) => { conn = c; void kirimAntrean(); },
+    saatPutus: () => { conn = null; },
+    jadwalkan: (fn, ms) => setTimeout(fn, ms),
+    batalkan: (h) => clearTimeout(h),
+  });
+
   // Yang digambar layar: baris optimis lebih dulu (paling baru), lalu baris server.
   const cekTampil = $derived([...cekOptimis, ...daftarCek]);
 
@@ -124,9 +164,7 @@
   let timerFlash: any = null;
 
   // Sesi login (SpacetimeAuth / Google)
-  let sesi = $state<{ status: 'belum_login' | 'ditolak' | 'kedaluwarsa' | 'oke'; email: string }>({ status: 'belum_login', email: '' });
-  // Koneksi gagal dengan token yang masih muda (bukan soal umur token).
-  let gagalKoneksi = $state(false);
+  let sesi = $state<{ status: StatusSesi; email: string }>({ status: 'belum_login', email: '' });
 
   // State edit inline (double click)
   let selEdit = $state<{ id: bigint; kolom: 'salesman' | 'nominal' | 'dibayar'; nilai: string } | null>(null);
@@ -267,7 +305,7 @@
       if (d && typeof d.cepat === 'string') { cepatTeks = d.cepat; bayarTeks = d.bayar ?? ''; }
     } catch {}
 
-    if (sesi.status === 'oke') hubungkanSpacetimeDB();
+    if (sesi.status === 'oke') koneksi.sambung();
     // Kursor ke kolom Cek TIDAK dipasang di sini: kolomnya belum tentu ada saat
     // ini (lihat $effect pemfokus di atas — itulah jalur yang benar). Yang
     // dipasang di sini hanya pemulihan saat operator kembali dari aplikasi lain.
@@ -301,142 +339,12 @@
     return () => clearInterval(timerAntrean);
   });
 
-  // --- Sambung ulang otomatis: koneksi pernah putus (jaringan kedip, HP
-  // tidur) dan sebelumnya aplikasi tidak pernah mencoba menyambung lagi.
-  let timerSambung: any = null;
-  let cobaKe = 0;
+  // Timer sambung ulang dibatalkan saat komponen dibuang — dulu tidak ada yang
+  // membatalkannya, jadi halaman yang dibongkar meninggalkan timer hidup.
+  onDestroy(() => koneksi.tutup());
+
+  // Penanda ketikan terakhir (dipakai saat memutuskan kapan boleh masuk ulang).
   let ketikTerakhir = 0;
-
-  function jadwalkanSambungUlang() {
-    if (timerSambung) return;
-    const jeda = Math.min(30000, 2000 * 2 ** cobaKe++);
-    timerSambung = setTimeout(async () => {
-      timerSambung = null;
-      if (tokenSegeraHabis(5)) await perpanjangToken().catch(() => false);
-      hubungkanSpacetimeDB();
-    }, jeda);
-  }
-
-  function hubungkanSpacetimeDB() {
-    statusKoneksi = 'menghubungkan';
-    gagalKoneksi = false;
-    // Jangan buang waktu menyambung dengan token mati — langsung masuk ulang.
-    if (tokenKedaluwarsa()) {
-      sesi = { status: 'kedaluwarsa', email: sesi.email };
-      masukUlangOtomatis();
-      return;
-    }
-    try {
-      const builder = DbConnection.builder()
-        .withUri(HOST)
-        .withDatabaseName(DB_NAME)
-        .withToken(spacetimeToken())
-        .onConnect((connection) => {
-          conn = connection;
-          statusKoneksi = 'terhubung';
-          cobaKe = 0;
-          gagalKoneksi = false;
-          // Ikatan akun: identity tiap klien OIDC BERBEDA walau emailnya sama
-          // (sapatycek vs sapaty-pos = dua identity). Tanpa klaim di sini, tabel
-          // staff tidak punya baris untuk identity ini, sehingga reducer yang
-          // mensyaratkan staff menolak 'kas: cashier only' padahal akunnya admin.
-          const em = emailLogin();
-          if (em) {
-            connection.reducers.klaimAkun({ email: em }).catch((e: unknown) => {
-              console.error('klaimAkun gagal:', e);
-            });
-          }
-          pasangSubscription();
-          void kirimAntrean();
-        })
-        .onDisconnect(() => {
-          statusKoneksi = 'terputus';
-          jadwalkanSambungUlang();
-        })
-        .onConnectError((_ctx, err) => {
-          statusKoneksi = 'terputus';
-          gagalKoneksi = true;
-          console.error('Koneksi SpacetimeDB error:', err);
-          // Token ditolak walau belum terlihat kedaluwarsa → coba perpanjang,
-          // kalau tidak bisa baru minta masuk ulang.
-          void (async () => {
-            if (await perpanjangToken()) jadwalkanSambungUlang();
-            else if (bolehCobaLagi(20000)) masukUlangOtomatis();
-          })();
-        });
-
-      builder.build();
-    } catch (e) {
-      statusKoneksi = 'terputus';
-      console.error(e);
-    }
-  }
-
-  function pasangSubscription() {
-    if (!conn) return;
-
-    conn.db.cekAman.onInsert(() => refreshData());
-    conn.db.cekAman.onUpdate(() => refreshData());
-    conn.db.cekAman.onDelete(() => refreshData());
-
-    conn.db.penjualanAman.onInsert(() => refreshData());
-    conn.db.penjualanAman.onUpdate(() => refreshData());
-
-    conn.db.salesmanAman.onInsert(() => refreshData());
-    conn.db.salesmanAman.onUpdate(() => refreshData());
-    conn.db.salesmanAman.onDelete(() => refreshData());
-
-    conn.db.cekFotoAman.onInsert(() => refreshData());
-    conn.db.cekFotoAman.onUpdate(() => refreshData());
-
-    conn.subscriptionBuilder()
-      .onApplied(() => {
-        refreshData();
-      })
-      // `cek_foto` dibaca lewat VIEW `cek_foto_aman`, bukan tabelnya. Tabel itu
-      // diprivatkan (5 Nov 2026) supaya tidak lagi terbaca siapa pun yang
-      // menyambung; view menyaring per pemanggil. Kalau kembali ke tabel privat,
-      // SELURUH batch langganan ini gagal, bukan cuma galeri fotonya.
-      // `staff` SENGAJA TIDAK DILANGGAN (5 Nov 2026). Isinya email + identitas
-      // perangkat, dan tabel itu diprivatkan; viewnya hanya memberi baris
-      // PEMANGGIL sendiri. Yang penting: sapatycek memang TIDAK memakai satu pun
-      // barisnya (bacaannya mati), sementara satu kueri langganan yang gagal
-      // menggagalkan SELURUH batch ini — jadi menahannya bukan pilihan.
-      // `salesman` dibaca lewat VIEW `salesman_aman` (5 Nov 2026). Tabel itu
-      // diprivatkan; viewnya memberikan seluruh daftar kepada pemanggil yang
-      // SUDAH TERDAFTAR dan nol baris kepada yang belum — jadi pencocokan kode
-      // dan nama kasir yang diketik operator tetap utuh.
-      .subscribe([
-        'SELECT * FROM cek_aman',
-        'SELECT * FROM penjualan_aman',
-        'SELECT * FROM salesman_aman',
-        'SELECT * FROM cek_foto_aman',
-      ]);
-  }
-
-  function refreshData() {
-    if (!conn?.db) return;
-    try {
-      daftarCek = Array.from(conn.db.cekAman.iter())
-        .filter((c: any) => c.outlet === OUTLET && c.tanggal === tanggal)
-        .sort((a: any, b: any) => Number(b.id - a.id));
-
-      daftarPenjualan = Array.from(conn.db.penjualanAman.iter())
-        .filter((p: any) => p.outlet === OUTLET && p.orderDate === tanggal);
-
-      // Cek dari hari sebelumnya (dibersihkan otomatis oleh job sweep_cek
-      // pukul 08:00 WIT; tombol di bawah untuk menjalankannya sendiri).
-      jmlCekLama = Array.from(conn.db.cekAman.iter()).filter((c: any) => c.tanggal && c.tanggal < tanggal).length;
-      daftarSalesman = Array.from(conn.db.salesmanAman.iter());
-      daftarFoto = Array.from(conn.db.cekFotoAman.iter());
-
-      // Baris server yang baru tiba menyerap baris optimisnya → tidak ada baris
-      // kembar di layar, dan id sementara diganti id server.
-      intake.rekonsiliasi(daftarCek);
-    } catch (e) {
-      console.error('Error membaca tabel:', e);
-    }
-  }
 
   // =========================================================================
   // LOGIKA INPUT CEK TANPA TOMBOL: Otomatis submit saat format lengkap
@@ -801,32 +709,11 @@
 
   // ==================== GERBANG LOGIN (SpacetimeAuth / Google) ====================
   const EMAIL_DIIZINKAN = 'tachtasandangsjb@gmail.com';
-  if (!handleOidcCallback()) {
-    // bukan callback: cek sesi login
-    const tok = spacetimeToken();
-    let email = '';
-    try {
-      email = emailLogin();
-    } catch {}
-    if (!tok || !email) sesi = { status: 'belum_login', email: '' };
-    else if (email !== EMAIL_DIIZINKAN) sesi = { status: 'ditolak', email };
-    // Token kedaluwarsa = sama seperti belum login. Ini akar 'indikator kuning
-    // dan input mati' yang dialami operator tiap token berumur ~1 jam.
-    else if (tokenKedaluwarsa()) {
-      // Perpanjang DIAM-DIAM dulu (tanpa pindah halaman). Hanya kalau gagal
-      // operator diarahkan masuk ulang.
-      sesi = { status: 'kedaluwarsa', email };
-      void (async () => {
-        if (await perpanjangToken()) {
-          sesi = { status: 'oke', email };
-          hubungkanSpacetimeDB();
-        } else {
-          masukUlangOtomatis();
-        }
-      })();
-    }
-    else sesi = { status: 'oke', email };
-  }
+  // Kalau halaman ini callback OIDC, handleOidcCallback() yang mengurus (tukar
+  // kode → simpan token → muat ulang). Kalau bukan, tentukan status sesi —
+  // urutannya (belum login / ditolak / token kedaluwarsa → perpanjang diam-diam)
+  // ada di lib/koneksi.ts, bukan terpencar di komponen ini.
+  if (!handleOidcCallback()) koneksi.siapkanSesi();
 
   // Operasi yang mengubah/menghapus/membayar cek yang SUDAH ada di server
   // butuh koneksi — tidak diantrekan supaya uang tidak terhitung dua kali.
@@ -873,17 +760,9 @@
     }
   }
 
-  function masukGoogle() {
-    tandaiCobaLagi();
-    loginGoogle();
-  }
-
-  // Masuk ulang otomatis sekali (sesi Google biasanya masih hidup, jadi
-  // operator tidak perlu mengetik apa pun). Kalau gagal, tombol tetap ada.
-  function masukUlangOtomatis() {
-    if (!bolehCobaLagi()) return;
-    masukGoogle();
-  }
+  // Masuk (atau masuk ulang): menandai percobaan lalu pindah ke login Google.
+  // Dipakai tombol di ketiga kartu sesi DAN oleh masuk-ulang otomatis di
+  // lib/koneksi.ts, yang menjaga agar tidak terjadi lingkaran redirect.
 </script>
 
 <!-- Kelas bersama: permukaan dasar + cincin fokus keyboard -->
@@ -897,7 +776,7 @@
       </p>
       <button
         type="button"
-        onclick={masukGoogle}
+        onclick={koneksi.masukSekarang}
         class="mt-5 h-11 w-full rounded-lg bg-ink text-[13px] font-medium text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Masuk dengan Google
@@ -916,7 +795,7 @@
       <button
         type="button"
         data-ui="masukUlang"
-        onclick={masukGoogle}
+        onclick={koneksi.masukSekarang}
         class="mt-5 h-11 w-full rounded-lg bg-ink text-[13px] font-medium text-paper transition-colors hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         Masuk lagi dengan Google
